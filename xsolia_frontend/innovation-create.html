@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Post an innovation · xsolia.com</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/theme.css" />
+</head>
+
+<body class="min-h-screen flex flex-col">
+  <!-- Shared navbar -->
+  <div id="navbar">
+    <header class="x-nav sticky top-0 z-50">
+      <div class="container h-full flex items-center justify-between gap-4 py-3">
+        <!-- Logo + site name -->
+        <a href="index.html" class="flex items-center gap-2">
+          <div
+            style="
+              width: 32px;
+              height: 32px;
+              border-radius: 999px;
+              background: linear-gradient(135deg, #ff9ac4, #7dd3fc);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-weight: 700;
+              color: #fff;
+            "
+          >
+            k
+          </div>
+          <div>
+            <div class="site-logo-text">xsolia.com</div>
+            <div class="site-subtitle">Early validation playground</div>
+          </div>
+        </a>
+
+        <!-- Right side: search + user -->
+        <div class="flex-1 flex items-center justify-end gap-4">
+          <!-- Search bar -->
+          <form
+            id="navSearchForm"
+            class="hidden md:flex items-center gap-2"
+            style="max-width: 260px; width: 100%;"
+          >
+            <input
+              id="navSearchInput"
+              type="search"
+              class="x-input"
+              placeholder="Search topics…"
+              style="padding-right: 2.2rem;"
+            />
+            <button
+              type="submit"
+              style="
+                margin-left: -2.1rem;
+                font-size: 0.8rem;
+                color: #9ca3af;
+              "
+            >
+              🔍
+            </button>
+          </form>
+
+          <!-- User info -->
+          <div
+            id="userInfo"
+            class="flex items-center gap-2"
+            style="font-size: 0.8rem; color: #6b7280;"
+          >
+            <div
+              id="userAvatar"
+              style="
+                width: 28px;
+                height: 28px;
+                border-radius: 999px;
+                background: linear-gradient(135deg, #7dd3fc, #a5b4fc);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: 600;
+                color: #fff;
+                text-transform: uppercase;
+              "
+            >
+              ?
+            </div>
+            <div class="flex flex-col">
+              <span id="userNameLabel">Guest</span>
+              <span id="userRoleLabel" style="font-size: 0.7rem; color: #9ca3af;">
+                Not signed in
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+  </div>
+
+  <!-- Main -->
+  <main class="flex-1 container" style="padding-top:1.5rem; padding-bottom:2rem;">
+    <section class="section" style="max-width:640px; margin:0 auto;">
+      <div class="x-card">
+        <p style="font-size:0.75rem; color:#9ca3af; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:0.25rem;">
+          Innovation zone
+        </p>
+        <h1 style="font-size:1.45rem; font-weight:600; margin-bottom:0.4rem;">Share a new idea</h1>
+        <p style="font-size:0.9rem; color:#6b7280; margin-bottom:1rem;">
+          Drop a half-baked idea, a problem you keep thinking about, or a product you wish existed. Creators and testers
+          can browse this pool and decide what to explore.
+        </p>
+
+        <form id="innovationForm" class="space-y-4">
+          <div>
+            <label style="font-size:0.85rem; color:#374151;">Title</label>
+            <input
+              id="title"
+              type="text"
+              class="x-input"
+              required
+              placeholder="e.g. A shared notebook for indie founders to swap experiments"
+            />
+          </div>
+
+          <div>
+            <label style="font-size:0.85rem; color:#374151;">Description</label>
+            <textarea
+              id="description"
+              rows="4"
+              class="x-textarea"
+              required
+              placeholder="Explain the problem, your rough idea, and why it might be interesting. It doesn’t need to be perfect."
+            ></textarea>
+          </div>
+
+          <div>
+            <label style="font-size:0.85rem; color:#374151;">Tags (optional)</label>
+            <input
+              id="tags"
+              type="text"
+              class="x-input"
+              placeholder="e.g. software, productivity, indie-hackers"
+            />
+            <p style="font-size:0.75rem; color:#9ca3af; margin-top:0.25rem;">
+              Separate tags with commas. We’ll use them to group similar ideas.
+            </p>
+          </div>
+
+          <div>
+            <label style="font-size:0.85rem; color:#374151;">What’s your intent?</label>
+            <select id="intent" class="x-input" style="margin-top:0.25rem;">
+              <option value="open">Just sharing this idea</option>
+              <option value="looking_for_team">I’d love to find people to explore this with</option>
+              <option value="just_idea">I probably won’t build it, feel free to steal</option>
+            </select>
+          </div>
+
+          <button
+            type="submit"
+            class="x-btn-primary"
+            style="width:100%; justify-content:center; margin-top:0.5rem;"
+          >
+            Publish innovation
+          </button>
+        </form>
+
+        <p id="error" style="font-size:0.85rem; color:#f97373; margin-top:0.75rem; display:none;"></p>
+        <p id="success" style="font-size:0.85rem; color:#16a34a; margin-top:0.75rem; display:none;"></p>
+      </div>
+    </section>
+  </main>
+
+  <footer style="text-align:center; padding:1.5rem 0; font-size:0.75rem; color:#9ca3af;">
+    © 2025 xsolia.com
+  </footer>
+
+  <script src="js/app.js"></script>
+  <script src="js/nav.js"></script>
+  <script>
+    const session = XsoliaApp.requireAuth({ redirect: "login.html" });
+    if (!session) {
+      throw new Error("Authentication required");
+    }
+
+    document.getElementById("innovationForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const title = document.getElementById("title").value.trim();
+      const description = document.getElementById("description").value.trim();
+      const tagsRaw = document.getElementById("tags").value.trim();
+      const intent = document.getElementById("intent").value;
+
+      const errorEl = document.getElementById("error");
+      const successEl = document.getElementById("success");
+      errorEl.style.display = "none";
+      successEl.style.display = "none";
+
+      if (!title || !description) {
+        errorEl.textContent = "Title and description are required.";
+        errorEl.style.display = "block";
+        return;
+      }
+
+      const tags = tagsRaw
+        ? tagsRaw
+            .split(",")
+            .map((t) => t.trim())
+            .filter((t) => t.length > 0)
+        : undefined;
+
+      const payload = {
+        title,
+        description,
+        intent,
+      };
+
+      if (tags && tags.length) {
+        payload.tags = tags;
+      }
+
+      try {
+        const { response, data } = await XsoliaApp.apiFetch("/innovations", {
+          method: "POST",
+          auth: true,
+          body: payload,
+        });
+        if (!response.ok) {
+          errorEl.textContent = data.detail || "Failed to publish innovation.";
+          errorEl.style.display = "block";
+          return;
+        }
+
+        successEl.textContent = "Innovation published! Redirecting to the list...";
+        successEl.style.display = "block";
+
+        setTimeout(() => {
+          window.location.href = "innovation-explore.html";
+        }, 2000);
+      } catch (err) {
+        errorEl.textContent = "An error occurred while publishing. Please try again.";
+        errorEl.style.display = "block";
+      }
+    });
+  </script>
+</body>
+</html>

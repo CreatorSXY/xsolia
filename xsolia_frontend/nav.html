@@ -1,0 +1,85 @@
+<header class="x-nav sticky top-0 z-50">
+  <div class="container h-full flex items-center justify-between gap-4 py-3">
+    <!-- Logo + site name -->
+    <a href="index.html" class="flex items-center gap-2">
+      <div
+        style="
+          width: 32px;
+          height: 32px;
+          border-radius: 999px;
+          background: linear-gradient(135deg, #ff9ac4, #7dd3fc);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 700;
+          color: #fff;
+        "
+      >
+        k
+      </div>
+      <div>
+        <div class="site-logo-text">xsolia.com</div>
+        <div class="site-subtitle">Early validation playground</div>
+      </div>
+    </a>
+
+    <!-- Right side: search + user -->
+    <div class="flex-1 flex items-center justify-end gap-4">
+      <!-- Search bar -->
+      <form
+        id="navSearchForm"
+        class="hidden md:flex items-center gap-2"
+        style="max-width: 260px; width: 100%;"
+      >
+        <input
+          id="navSearchInput"
+          type="search"
+          class="x-input"
+          placeholder="Search topics…"
+          style="padding-right: 2.2rem;"
+        />
+        <button
+          type="submit"
+          style="
+            margin-left: -2.1rem;
+            font-size: 0.8rem;
+            color: #9ca3af;
+          "
+        >
+          🔍
+        </button>
+      </form>
+
+      <!-- User info -->
+      <div
+        id="userInfo"
+        class="flex items-center gap-2"
+        style="font-size: 0.8rem; color: #6b7280;"
+      >
+        <div
+          id="userAvatar"
+          style="
+            width: 28px;
+            height: 28px;
+            border-radius: 999px;
+            background: linear-gradient(135deg, #7dd3fc, #a5b4fc);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            color: #fff;
+            text-transform: uppercase;
+          "
+        >
+          ?
+        </div>
+        <div class="flex flex-col">
+          <span id="userNameLabel">Guest</span>
+          <span id="userRoleLabel" style="font-size: 0.7rem; color: #9ca3af;">
+            Not signed in
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>

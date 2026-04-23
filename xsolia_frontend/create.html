@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Create Validation Topic · xsolia.com</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/theme.css">
+</head>
+
+<body class="min-h-screen flex flex-col">
+  <!-- Shared navbar -->
+  <div id="navbar">
+    <header class="x-nav sticky top-0 z-50">
+      <div class="container h-full flex items-center justify-between gap-4 py-3">
+        <!-- Logo + site name -->
+        <a href="index.html" class="flex items-center gap-2">
+          <div
+            style="
+              width: 32px;
+              height: 32px;
+              border-radius: 999px;
+              background: linear-gradient(135deg, #ff9ac4, #7dd3fc);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-weight: 700;
+              color: #fff;
+            "
+          >
+            k
+          </div>
+          <div>
+            <div class="site-logo-text">xsolia.com</div>
+            <div class="site-subtitle">Early validation playground</div>
+          </div>
+        </a>
+
+        <!-- Right side: search + user -->
+        <div class="flex-1 flex items-center justify-end gap-4">
+          <!-- Search bar -->
+          <form
+            id="navSearchForm"
+            class="hidden md:flex items-center gap-2"
+            style="max-width: 260px; width: 100%;"
+          >
+            <input
+              id="navSearchInput"
+              type="search"
+              class="x-input"
+              placeholder="Search topics…"
+              style="padding-right: 2.2rem;"
+            />
+            <button
+              type="submit"
+              style="
+                margin-left: -2.1rem;
+                font-size: 0.8rem;
+                color: #9ca3af;
+              "
+            >
+              🔍
+            </button>
+          </form>
+
+          <!-- User info -->
+          <div
+            id="userInfo"
+            class="flex items-center gap-2"
+            style="font-size: 0.8rem; color: #6b7280;"
+          >
+            <div
+              id="userAvatar"
+              style="
+                width: 28px;
+                height: 28px;
+                border-radius: 999px;
+                background: linear-gradient(135deg, #7dd3fc, #a5b4fc);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: 600;
+                color: #fff;
+                text-transform: uppercase;
+              "
+            >
+              ?
+            </div>
+            <div class="flex flex-col">
+              <span id="userNameLabel">Guest</span>
+              <span id="userRoleLabel" style="font-size: 0.7rem; color: #9ca3af;">
+                Not signed in
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+  </div>
+
+  <!-- Main -->
+  <main class="flex-1 container" style="padding-top:1.5rem; padding-bottom:2rem;">
+    <section class="section" style="max-width:640px;">
+      <div class="x-card">
+        <h1 style="font-size:1.4rem; font-weight:600; margin-bottom:0.4rem;">Create validation topic</h1>
+        <p style="font-size:0.9rem; color:#6b7280; margin-bottom:1rem;">
+          Describe your idea and ask a handful of focused questions to understand your market. Only creators with an active subscription can post.
+        </p>
+
+        <form id="projectForm" class="space-y-4">
+          <div>
+            <label style="font-size:0.85rem; color:#6b7280;">Topic title</label>
+            <input
+              id="title"
+              type="text"
+              required
+              class="x-input"
+              placeholder="e.g. A lightweight validation tool for indie developers"
+            />
+          </div>
+
+          <div>
+            <label style="font-size:0.85rem; color:#6b7280;">Description</label>
+            <textarea
+              id="description"
+              required
+              rows="3"
+              class="x-textarea"
+              placeholder="Briefly describe your idea and what you want to learn from testers."
+            ></textarea>
+          </div>
+
+          <div>
+            <label style="font-size:0.85rem; color:#6b7280;">Target audience</label>
+            <textarea
+              id="target"
+              required
+              rows="2"
+              class="x-textarea"
+              placeholder="e.g. Indie developers, early-stage entrepreneurs, commuting cyclists"
+            ></textarea>
+          </div>
+
+          <div>
+            <label style="font-size:0.85rem; color:#6b7280;">Testing category</label>
+
+            <!-- Primary category -->
+            <select
+              id="category"
+              class="x-input"
+              style="margin-top:0.25rem; max-width:320px;"
+            >
+              <option value="">Choose a main category (optional)</option>
+              <option value="digital">Digital products</option>
+              <option value="physical">Physical products</option>
+              <option value="service">Services & experiences</option>
+              <option value="education">Education & creators</option>
+              <option value="health">Health & wellbeing</option>
+            </select>
+
+            <!-- Subcategory depends on main category -->
+            <select
+              id="subcategory"
+              class="x-input"
+              style="margin-top:0.5rem; max-width:320px;"
+              disabled
+            >
+              <option value="">Select a main category first</option>
+            </select>
+
+            <p style="font-size:0.75rem; color:#9ca3af; margin-top:0.25rem;">
+              This helps testers quickly find topics that match what they care about. You can skip this if you are not sure yet.
+            </p>
+          </div>
+
+          <div>
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.25rem;">
+              <label style="font-size:0.85rem; color:#6b7280;">Key question(s) (recommend 3–5)</label>
+              <button
+                type="button"
+                id="addQuestionBtn"
+                class="x-btn-secondary"
+                style="font-size:0.75rem; padding-inline:0.6rem; padding-block:0.25rem;"
+              >
+                + Add question
+              </button>
+            </div>
+            <p style="font-size:0.75rem; color:#9ca3af; margin-bottom:0.4rem;">
+              For example: “How do you currently solve this problem?” or “What price would feel reasonable to you?”
+            </p>
+            <div id="questionsWrap" class="space-y-2">
+              <div class="question-row" style="display:flex; align-items:center; gap:0.5rem;">
+                <input
+                  type="text"
+                  class="question-input x-input"
+                  style="flex:1;"
+                  placeholder="Question 1"
+                  required
+                />
+                <button
+                  type="button"
+                  class="delete-question-btn"
+                  style="font-size:0.75rem; padding:0.25rem 0.5rem;"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label style="font-size:0.85rem; color:#6b7280;">Participation reward (optional)</label>
+            <textarea
+              id="reward"
+              rows="2"
+              class="x-textarea"
+              placeholder="e.g. Early access invite, 50% discount after launch, or a small gift."
+            ></textarea>
+          </div>
+
+          <div>
+            <label style="font-size:0.85rem; color:#6b7280;">Budget for this validation (USD, optional)</label>
+            <input
+              id="budget"
+              type="number"
+              min="0"
+              class="x-input"
+              style="max-width:160px; margin-top:0.25rem;"
+              placeholder="e.g. 50"
+            />
+            <p style="font-size:0.75rem; color:#9ca3af; margin-top:0.25rem;">
+              This is shown to testers for context. Leave it blank if you are not sure yet.
+            </p>
+          </div>
+
+          <button
+            type="submit"
+            class="x-btn-primary"
+            style="width:100%; justify-content:center; margin-top:0.5rem;"
+          >
+            Publish validation topic
+          </button>
+        </form>
+
+        <p id="error" style="font-size:0.85rem; color:#f97373; margin-top:0.75rem; display:none;"></p>
+        <p id="success" style="font-size:0.85rem; color:#16a34a; margin-top:0.75rem; display:none;"></p>
+      </div>
+    </section>
+  </main>
+
+  <footer style="text-align:center; padding:1.5rem 0; font-size:0.75rem; color:#9ca3af;">
+    © 2025 xsolia.com
+  </footer>
+
+  <script src="js/app.js"></script>
+  <script src="js/nav.js"></script>
+  <script>
+    // Check creator status and subscription
+    const session = XsoliaApp.requireAuth({ role: 'creator', redirect: 'login.html?role=creator' });
+    if (!session) {
+      throw new Error('Authentication required');
+    }
+
+    const subscription = session.subscription;
+    if (subscription !== 'creator_basic' && subscription !== 'creator_plus') {
+      alert('You need an active creator subscription to post topics.');
+      window.location.href = 'creator-dashboard.html';
+    }
+
+    // Category → subcategory mapping
+    const CATEGORY_MAP = {
+      digital: [
+        { value: 'digital_consumer_app', label: 'Consumer apps' },
+        { value: 'digital_productivity_tool', label: 'Productivity & knowledge tools' },
+        { value: 'digital_dev_tool', label: 'Developer tools / APIs' },
+        { value: 'digital_b2b_saas', label: 'B2B SaaS' },
+        { value: 'digital_ai_product', label: 'AI-powered products' },
+        { value: 'digital_game_entertainment', label: 'Games & entertainment' },
+      ],
+      physical: [
+        { value: 'physical_clothing', label: 'Clothing & accessories' },
+        { value: 'physical_home_living', label: 'Home & living' },
+        { value: 'physical_gadgets', label: 'Gadgets & small hardware' },
+        { value: 'physical_stationery', label: 'Stationery & study supplies' },
+        { value: 'physical_food_beverage', label: 'Food & beverage' },
+        { value: 'physical_outdoor_sports', label: 'Outdoor & sports gear' },
+      ],
+      service: [
+        { value: 'service_local', label: 'Local services' },
+        { value: 'service_travel_experience', label: 'Travel & experiences' },
+        { value: 'service_on_demand', label: 'On-demand / on-call services' },
+        { value: 'service_consulting', label: 'Consulting & advisory' },
+        { value: 'service_subscription', label: 'Subscription services' },
+      ],
+      education: [
+        { value: 'edu_online_course', label: 'Online courses & bootcamps' },
+        { value: 'edu_tutoring_coaching', label: 'Tutoring & coaching' },
+        { value: 'edu_learning_tool', label: 'Learning tools' },
+        { value: 'edu_creator_tool', label: 'Creator tools' },
+        { value: 'edu_community', label: 'Communities' },
+      ],
+      health: [
+        { value: 'health_fitness', label: 'Fitness & training' },
+        { value: 'health_nutrition', label: 'Nutrition & food habits' },
+        { value: 'health_sleep', label: 'Sleep & recovery' },
+        { value: 'health_mental', label: 'Mental health & mindfulness' },
+        { value: 'health_habit', label: 'Habit building / lifestyle' },
+      ],
+    };
+
+    // Wire up the dropdowns
+    const categorySelect = document.getElementById('category');
+    const subcategorySelect = document.getElementById('subcategory');
+
+    if (categorySelect && subcategorySelect) {
+      categorySelect.addEventListener('change', () => {
+        const key = categorySelect.value;
+        const options = CATEGORY_MAP[key] || [];
+
+        // Reset subcategory dropdown
+        subcategorySelect.innerHTML = '';
+        if (!key) {
+          subcategorySelect.disabled = true;
+          const opt = document.createElement('option');
+          opt.value = '';
+          opt.textContent = 'Select a main category first';
+          subcategorySelect.appendChild(opt);
+          return;
+        }
+
+        subcategorySelect.disabled = false;
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = 'Choose a subcategory (optional)';
+        subcategorySelect.appendChild(placeholder);
+
+        options.forEach(({ value, label }) => {
+          const opt = document.createElement('option');
+          opt.value = value;
+          opt.textContent = label;
+          subcategorySelect.appendChild(opt);
+        });
+      });
+    }
+
+    const firstDeleteBtn = document.querySelector('.question-row .delete-question-btn');
+    if (firstDeleteBtn) {
+      firstDeleteBtn.addEventListener('click', () => {
+        const row = firstDeleteBtn.closest('.question-row');
+        row.remove();
+        refreshDeleteButtons();
+      });
+    }
+
+    // Add new question fields
+    document.getElementById('addQuestionBtn').addEventListener('click', () => {
+      const wrap = document.getElementById('questionsWrap');
+      const count = wrap.querySelectorAll('.question-input').length;
+      if (count >= 5) {
+        alert('A maximum of 5 questions is recommended.');
+        return;
+      }
+
+      const row = document.createElement('div');
+      row.className = 'question-row';
+      row.style.display = 'flex';
+      row.style.alignItems = 'center';
+      row.style.gap = '0.5rem';
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.placeholder = `Question ${count + 1}`;
+      input.className = 'question-input x-input';
+      input.style.flex = '1';
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'delete-question-btn';
+      btn.textContent = '✕';
+      btn.style.fontSize = '0.75rem';
+      btn.style.padding = '0.25rem 0.5rem';
+
+      btn.addEventListener('click', () => {
+        row.remove();
+        refreshDeleteButtons();
+      });
+
+      row.appendChild(input);
+      row.appendChild(btn);
+      wrap.appendChild(row);
+      refreshDeleteButtons();
+    });
+
+    function refreshDeleteButtons() {
+      const rows = document.querySelectorAll('#questionsWrap .question-row');
+      const total = rows.length;
+
+      rows.forEach((row, index) => {
+        const btn = row.querySelector('.delete-question-btn');
+        const input = row.querySelector('.question-input');
+
+        // Renumber placeholders so they are always 1,2,3,...
+        if (input) {
+          input.placeholder = `Question ${index + 1}`;
+        }
+
+        // Enable/disable delete buttons based on total count
+        if (total === 1) {
+          btn.disabled = true;
+          btn.style.color = '#9ca3af';
+          btn.style.cursor = 'not-allowed';
+        } else {
+          btn.disabled = false;
+          btn.style.color = '';
+          btn.style.cursor = 'pointer';
+        }
+      });
+    }
+    refreshDeleteButtons();
+
+    // Submit project
+    document.getElementById('projectForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const title = document.getElementById('title').value.trim();
+      const description = document.getElementById('description').value.trim();
+      const target = document.getElementById('target').value.trim();
+      const mainCategory = (document.getElementById('category')?.value || '').trim();
+      const subcategory = (document.getElementById('subcategory')?.value || '').trim();
+      const reward = document.getElementById('reward').value.trim();
+      const budgetStr = document.getElementById('budget').value.trim();
+      const qInputs = document.querySelectorAll('.question-input');
+      const questions = [];
+      qInputs.forEach((inp) => {
+        const v = inp.value.trim();
+        if (v) questions.push(v);
+      });
+      if (questions.length === 0) {
+        alert('Please enter at least one question.');
+        return;
+      }
+
+      const payload = {
+        title,
+        description,
+        target_audience: target,
+        questions,
+        reward_note: reward || null,
+        budget: Number(budgetStr) || 0,
+        main_category: mainCategory || 'testing',
+        subcategory: subcategory || null,
+      };
+
+      const { response, data } = await XsoliaApp.apiFetch('/projects', {
+        method: 'POST',
+        auth: true,
+        body: payload
+      });
+      const errorEl = document.getElementById('error');
+      const successEl = document.getElementById('success');
+      errorEl.style.display = 'none';
+      successEl.style.display = 'none';
+      if (!response.ok) {
+        errorEl.textContent = data.detail || 'Publishing failed, please try again.';
+        errorEl.style.display = 'block';
+      } else {
+        successEl.textContent = 'Topic published successfully! Redirecting to your dashboard...';
+        successEl.style.display = 'block';
+        setTimeout(() => {
+          window.location.href = 'creator-dashboard.html';
+        }, 3000);
+      }
+    });
+  </script>
+</body>
+</html>

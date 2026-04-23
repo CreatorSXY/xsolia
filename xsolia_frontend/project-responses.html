@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Topic responses · xsolia.com</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/theme.css" />
+</head>
+
+<body class="min-h-screen flex flex-col">
+  <!-- Shared navbar -->
+  <div id="navbar">
+    <header class="x-nav sticky top-0 z-50">
+      <div class="container h-full flex items-center justify-between gap-4 py-3">
+        <!-- Logo + site name -->
+        <a href="index.html" class="flex items-center gap-2">
+          <div
+            style="
+              width: 32px;
+              height: 32px;
+              border-radius: 999px;
+              background: linear-gradient(135deg, #ff9ac4, #7dd3fc);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-weight: 700;
+              color: #fff;
+            "
+          >
+            k
+          </div>
+          <div>
+            <div class="site-logo-text">xsolia.com</div>
+            <div class="site-subtitle">Early validation playground</div>
+          </div>
+        </a>
+
+        <!-- Right side: search + user -->
+        <div class="flex-1 flex items-center justify-end gap-4">
+          <!-- Search bar -->
+          <form
+            id="navSearchForm"
+            class="hidden md:flex items-center gap-2"
+            style="max-width: 260px; width: 100%;"
+          >
+            <input
+              id="navSearchInput"
+              type="search"
+              class="x-input"
+              placeholder="Search topics…"
+              style="padding-right: 2.2rem;"
+            />
+            <button
+              type="submit"
+              style="
+                margin-left: -2.1rem;
+                font-size: 0.8rem;
+                color: #9ca3af;
+              "
+            >
+              🔍
+            </button>
+          </form>
+
+          <!-- User info -->
+          <div
+            id="userInfo"
+            class="flex items-center gap-2"
+            style="font-size: 0.8rem; color: #6b7280;"
+          >
+            <div
+              id="userAvatar"
+              style="
+                width: 28px;
+                height: 28px;
+                border-radius: 999px;
+                background: linear-gradient(135deg, #7dd3fc, #a5b4fc);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: 600;
+                color: #fff;
+                text-transform: uppercase;
+              "
+            >
+              ?
+            </div>
+            <div class="flex flex-col">
+              <span id="userNameLabel">Guest</span>
+              <span id="userRoleLabel" style="font-size: 0.7rem; color: #9ca3af;">
+                Not signed in
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+  </div>
+
+  <!-- Main -->
+  <main class="flex-1 container" style="padding-top:1.5rem; padding-bottom:2rem;">
+    <!-- Project info -->
+    <section class="section" style="max-width:760px; margin:0 auto;">
+      <div class="x-card">
+        <p style="font-size:0.75rem; color:#9ca3af; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:0.25rem;">
+          Topic overview
+        </p>
+        <h1 id="projectTitle" style="font-size:1.45rem; font-weight:600; margin-bottom:0.25rem;">
+          Loading...
+        </h1>
+        <p id="projectDesc" style="font-size:0.9rem; color:#4b5563; margin-bottom:0.3rem;"></p>
+        <p id="projectMeta" style="font-size:0.8rem; color:#6b7280;"></p>
+      </div>
+    </section>
+
+    <!-- Responses list -->
+    <section class="section" style="max-width:760px; margin:0 auto;">
+      <div class="flex items-center justify-between mb-2">
+        <h2 style="font-size:1.05rem; font-weight:600;">Responses from testers</h2>
+        <span id="responsesCount" style="font-size:0.8rem; color:#9ca3af;"></span>
+      </div>
+      <p style="font-size:0.8rem; color:#6b7280; margin-bottom:0.75rem;">
+        Review answers below. You can mark one or more responses as <strong>accepted</strong> to reward good feedback.
+      </p>
+
+      <div id="responsesList" class="flex flex-col gap-3"></div>
+      <p id="emptyHint" class="hidden" style="font-size:0.9rem; color:#9ca3af; margin-top:0.5rem;">
+        No responses yet. Once testers start answering, they will show up here.
+      </p>
+      <p id="error" class="hidden" style="font-size:0.9rem; color:#f97373; margin-top:0.5rem;"></p>
+    </section>
+  </main>
+
+  <footer style="text-align:center; padding:1.5rem 0; font-size:0.75rem; color:#9ca3af;">
+    © 2025 xsolia.com
+  </footer>
+
+  <script src="js/app.js"></script>
+  <script src="js/nav.js"></script>
+  <script>
+    const session = XsoliaApp.requireAuth({ role: "creator", redirect: "login.html?role=creator" });
+    if (!session) {
+      throw new Error("Authentication required");
+    }
+    const userId = Number(session.userId);
+
+    const params = new URLSearchParams(window.location.search);
+    const projectId = params.get("project_id");
+    if (!projectId) {
+      alert("Missing project_id. Please open this page from your dashboard.");
+      window.location.href = "creator-dashboard.html";
+    }
+
+    const projectTitleEl = document.getElementById("projectTitle");
+    const projectDescEl = document.getElementById("projectDesc");
+    const projectMetaEl = document.getElementById("projectMeta");
+    const responsesListEl = document.getElementById("responsesList");
+    const emptyHintEl = document.getElementById("emptyHint");
+    const errorEl = document.getElementById("error");
+    const responsesCountEl = document.getElementById("responsesCount");
+
+    let currentProject = null;
+
+    async function loadProjectAndResponses() {
+      try {
+        // 1) 从 active 列表里找到当前 project（拿到 title / description / questions / creator_id）
+        const { response: projectRes, data: projectData } = await XsoliaApp.apiFetch("/projects/active");
+        if (!projectRes.ok) {
+          throw new Error(projectData.detail || "Failed to load project list.");
+        }
+
+        const proj = projectData.find((p) => String(p.id) === String(projectId));
+        if (!proj) {
+          throw new Error("This topic could not be found. It may have been closed.");
+        }
+        currentProject = proj;
+
+        // 权限：确保当前 creator 是该 topic 的创建者
+        if (Number(proj.creator_id) !== userId) {
+          alert("You are not the creator of this topic.");
+          window.location.href = "creator-dashboard.html";
+          return;
+        }
+
+        projectTitleEl.textContent = proj.title;
+        projectDescEl.textContent = proj.description || "";
+        const target = proj.target_audience || "Not specified";
+        const budget = proj.budget || 0;
+        projectMetaEl.textContent = `Target: ${target} · Budget: $${budget}`;
+
+        // 2) 拉取该 project 的所有回答
+        const { response: respRes, data: respData } = await XsoliaApp.apiFetch(`/projects/${projectId}/responses`, {
+          auth: true
+        });
+        if (!respRes.ok) {
+          throw new Error(respData.detail || "Failed to load responses.");
+        }
+
+        renderResponses(respData, proj);
+      } catch (err) {
+        errorEl.textContent = err.message || "Error loading topic responses.";
+        errorEl.classList.remove("hidden");
+      }
+    }
+
+    function renderResponses(responses, project) {
+      responsesListEl.innerHTML = "";
+      errorEl.classList.add("hidden");
+
+      responsesCountEl.textContent = `${responses.length} response${responses.length === 1 ? "" : "s"}`;
+
+      if (!responses.length) {
+        emptyHintEl.classList.remove("hidden");
+        return;
+      }
+      emptyHintEl.classList.add("hidden");
+
+      const questions = project.questions || [];
+
+      responses.forEach((resp, idx) => {
+        const card = document.createElement("div");
+        card.className = "x-card";
+
+        if (resp.accepted_by_creator) {
+          card.style.borderColor = "#bbf7d0"; // light green
+          card.style.boxShadow = "0 0 0 1px #bbf7d0";
+        }
+
+        // Header row
+        const headerRow = document.createElement("div");
+        headerRow.className = "flex items-center justify-between mb-1";
+
+        const leftHeader = document.createElement("div");
+        leftHeader.style.fontSize = "0.85rem";
+        const leftPrefix = document.createElement("span");
+        leftPrefix.textContent = `Tester #${resp.user_id} · Interest: `;
+        const leftStrong = document.createElement("strong");
+        leftStrong.textContent = `${resp.interest_level}/5`;
+        leftHeader.appendChild(leftPrefix);
+        leftHeader.appendChild(leftStrong);
+
+        const rightHeader = document.createElement("div");
+        rightHeader.style.fontSize = "0.75rem";
+        rightHeader.style.color = "#9ca3af";
+        const createdAt = resp.created_at ? new Date(resp.created_at) : null;
+        rightHeader.textContent = createdAt ? `Answered on ${createdAt.toLocaleDateString()}` : "";
+
+        headerRow.appendChild(leftHeader);
+        headerRow.appendChild(rightHeader);
+
+        // Price info row
+        const priceRow = document.createElement("p");
+        priceRow.style.fontSize = "0.8rem";
+        priceRow.style.color = "#6b7280";
+        let priceText = "Price: not specified";
+        if (resp.price_min != null && resp.price_max != null) {
+          priceText = `Price: $${resp.price_min} – $${resp.price_max}`;
+        }
+        priceRow.textContent = priceText;
+
+        // Answers list
+        const answersWrap = document.createElement("div");
+        answersWrap.style.marginTop = "0.5rem";
+        answersWrap.style.fontSize = "0.85rem";
+        answersWrap.style.color = "#374151";
+
+        (resp.answers || []).forEach((ans, i) => {
+          const block = document.createElement("div");
+          block.style.marginBottom = "0.35rem";
+
+          const qText = questions[i] || `Answer ${i + 1}`;
+          const qEl = document.createElement("div");
+          qEl.style.fontWeight = "500";
+          qEl.style.marginBottom = "0.05rem";
+          qEl.textContent = `Q${i + 1}. ${qText}`;
+
+          const aEl = document.createElement("div");
+          aEl.textContent = ans || "(no answer provided)";
+
+          block.appendChild(qEl);
+          block.appendChild(aEl);
+          answersWrap.appendChild(block);
+        });
+
+        // Actions row
+        const actionsRow = document.createElement("div");
+        actionsRow.className = "flex items-center justify-between";
+        actionsRow.style.marginTop = "0.5rem";
+        actionsRow.style.fontSize = "0.8rem";
+
+        const leftInfo = document.createElement("span");
+        leftInfo.style.color = "#6b7280";
+        leftInfo.textContent = `Likes: ${resp.likes_count ?? 0}`;
+
+        const rightBtns = document.createElement("div");
+        rightBtns.className = "flex items-center gap-2";
+
+        const acceptedBadge = document.createElement("span");
+        acceptedBadge.style.fontSize = "0.75rem";
+        acceptedBadge.style.padding = "0.15rem 0.55rem";
+        acceptedBadge.style.borderRadius = "999px";
+        acceptedBadge.style.background = "#dcfce7";
+        acceptedBadge.style.color = "#166534";
+        acceptedBadge.textContent = "Accepted";
+
+        const acceptBtn = document.createElement("button");
+        acceptBtn.type = "button";
+        acceptBtn.className = "x-btn-primary";
+        acceptBtn.style.fontSize = "0.8rem";
+        acceptBtn.style.paddingInline = "0.8rem";
+        acceptBtn.style.paddingBlock = "0.25rem";
+        acceptBtn.textContent = "Accept suggestion";
+
+        if (resp.accepted_by_creator) {
+          rightBtns.appendChild(acceptedBadge);
+        } else {
+          rightBtns.appendChild(acceptBtn);
+        }
+
+        actionsRow.appendChild(leftInfo);
+        actionsRow.appendChild(rightBtns);
+
+        // Attach accept handler
+        if (!resp.accepted_by_creator) {
+          acceptBtn.addEventListener("click", async () => {
+            const confirmMsg = "Accept this response as useful feedback? Points will be awarded to this tester.";
+            if (!confirm(confirmMsg)) return;
+
+            try {
+              const { response: acceptRes, data } = await XsoliaApp.apiFetch(`/responses/${resp.id}/accept`, {
+                method: "POST",
+                auth: true
+              });
+              if (!acceptRes.ok) {
+                alert(data.detail || "Failed to accept this response.");
+                return;
+              }
+
+              // 更新 UI 状态
+              card.style.borderColor = "#bbf7d0";
+              card.style.boxShadow = "0 0 0 1px #bbf7d0";
+              rightBtns.textContent = "";
+              rightBtns.appendChild(acceptedBadge);
+            } catch (err) {
+              alert("An error occurred while accepting this response.");
+            }
+          });
+        }
+
+        card.appendChild(headerRow);
+        card.appendChild(priceRow);
+        card.appendChild(answersWrap);
+        card.appendChild(actionsRow);
+
+        responsesListEl.appendChild(card);
+      });
+    }
+
+    loadProjectAndResponses();
+  </script>
+</body>
+</html>

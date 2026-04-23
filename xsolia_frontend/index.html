@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>xsolia.com · Validate Before You Build</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/theme.css">
+</head>
+
+<body class="min-h-screen flex flex-col">
+  <div id="navbar">
+    <header class="x-nav sticky top-0 z-50">
+      <div class="container h-full flex items-center justify-between gap-4 py-3">
+        <a href="index.html" class="flex items-center gap-2">
+          <div
+            style="
+              width: 32px;
+              height: 32px;
+              border-radius: 999px;
+              background: linear-gradient(135deg, #dd8f62, #c7633c);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-weight: 700;
+              color: #fff;
+            "
+          >
+            k
+          </div>
+          <div>
+            <div class="site-logo-text">xsolia.com</div>
+            <div class="site-subtitle">Validate early, build with confidence</div>
+          </div>
+        </a>
+
+        <div class="flex-1 flex items-center justify-end gap-4">
+          <form
+            id="navSearchForm"
+            class="hidden md:flex items-center gap-2"
+            style="max-width: 260px; width: 100%;"
+          >
+            <input
+              id="navSearchInput"
+              type="search"
+              class="x-input"
+              placeholder="Search topics…"
+              style="padding-right: 2.2rem;"
+            />
+            <button
+              type="submit"
+              style="
+                margin-left: -2.1rem;
+                font-size: 0.8rem;
+                color: #9ca3af;
+              "
+            >
+              🔍
+            </button>
+          </form>
+
+          <div
+            id="userInfo"
+            class="flex items-center gap-2"
+            style="font-size: 0.8rem; color: #6b7280;"
+          >
+            <div
+              id="userAvatar"
+              style="
+                width: 28px;
+                height: 28px;
+                border-radius: 999px;
+                background: linear-gradient(135deg, #d58f66, #c7633c);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: 600;
+                color: #fff;
+                text-transform: uppercase;
+              "
+            >
+              ?
+            </div>
+            <div class="flex flex-col">
+              <span id="userNameLabel">Guest</span>
+              <span id="userRoleLabel" style="font-size: 0.7rem; color: #9ca3af;">
+                Not signed in
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+  </div>
+
+  <section class="landing-hero">
+    <div class="landing-inner">
+      <div class="brand-line reveal-up">xsolia.com</div>
+      <h1 class="hero-title reveal-up reveal-delay-1">Find signal before you ship.</h1>
+      <p class="hero-sub reveal-up reveal-delay-2">
+        Publish your concept, collect real reactions, and prioritize what deserves your next sprint.
+      </p>
+      <div class="hero-cta-row reveal-up reveal-delay-2">
+        <a href="login.html?role=creator" class="x-btn-primary">Start as Creator</a>
+        <a href="login.html?role=tester" class="x-btn-secondary" style="background: rgba(255,255,255,0.78); border-color: rgba(255,255,255,0.58);">
+          Join as Tester
+        </a>
+      </div>
+      <div class="hero-note reveal-up reveal-delay-3">From first idea to early traction with less guesswork.</div>
+    </div>
+  </section>
+
+  <main class="flex-1">
+    <section class="canvas-strip">
+      <div class="container" style="padding-top:2rem; padding-bottom:2rem;">
+        <div class="flex items-end justify-between gap-4" style="margin-bottom:0.6rem;">
+          <div>
+            <h2 style="font-size:1.2rem; font-weight:700; color:#1f1b18; margin:0;">Live validation feed</h2>
+            <p style="font-size:0.86rem; color:#6e6259; margin-top:0.2rem;">Latest topics waiting for user feedback.</p>
+          </div>
+          <a href="explore.html" class="x-btn-secondary" style="font-size:0.8rem;">Browse all</a>
+        </div>
+
+        <div id="homeTopics" class="x-card" style="padding-top:0.3rem; padding-bottom:0.3rem;"></div>
+      </div>
+    </section>
+
+    <section class="container" style="padding-top:2rem; padding-bottom:2.2rem;">
+      <div class="x-card" style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:1rem; background:linear-gradient(115deg, #fff8f1 0%, #f6ede3 100%);">
+        <div style="max-width:44ch;">
+          <h3 style="margin:0; font-size:1.1rem; font-weight:700; color:#1f1b18;">Innovation Pool</h3>
+          <p style="margin-top:0.35rem; margin-bottom:0; font-size:0.88rem; color:#65594f;">
+            Explore early concepts, side projects, and rough ideas from creators and testers.
+          </p>
+        </div>
+        <a href="innovation-explore.html" class="x-btn-primary" style="white-space:nowrap;">Open Innovation Pool</a>
+      </div>
+    </section>
+  </main>
+
+  <footer style="text-align:center; padding:1.5rem 0; font-size:0.75rem; color:#9ca3af;">
+    © 2026 xsolia.com
+  </footer>
+
+  <script src="js/app.js"></script>
+  <script src="js/nav.js"></script>
+  <script>
+    function createTopicRow(topic) {
+      const row = document.createElement("article");
+      row.className = "topic-row";
+
+      const left = document.createElement("div");
+
+      const title = document.createElement("div");
+      title.className = "topic-row-title";
+      title.textContent = topic.title || "Untitled topic";
+
+      const meta = document.createElement("div");
+      meta.className = "topic-row-meta";
+      const questionCount = Array.isArray(topic.questions) ? topic.questions.length : 0;
+      meta.textContent = `Target: ${topic.target_audience || "Not specified"} · Questions: ${questionCount} · Budget: $${topic.budget || 0}`;
+
+      left.appendChild(title);
+      left.appendChild(meta);
+
+      const action = document.createElement("a");
+      action.href = `answer.html?project_id=${topic.id}`;
+      action.className = "x-btn-secondary";
+      action.style.fontSize = "0.8rem";
+      action.textContent = "Answer";
+
+      row.appendChild(left);
+      row.appendChild(action);
+      return row;
+    }
+
+    async function loadHomeTopics() {
+      const box = document.getElementById("homeTopics");
+      box.textContent = "";
+
+      try {
+        const { response, data } = await XsoliaApp.apiFetch("/projects/active");
+        if (!response.ok) {
+          throw new Error((data && data.detail) || "Failed to load topics");
+        }
+
+        const topics = (Array.isArray(data) ? data : []).slice(0, 5);
+        if (!topics.length) {
+          const empty = document.createElement("p");
+          empty.style.fontSize = "0.85rem";
+          empty.style.color = "#8d7f73";
+          empty.style.padding = "0.85rem 0";
+          empty.textContent = "No active topics yet.";
+          box.appendChild(empty);
+          return;
+        }
+
+        topics.forEach((topic) => box.appendChild(createTopicRow(topic)));
+      } catch (error) {
+        const failed = document.createElement("p");
+        failed.style.fontSize = "0.85rem";
+        failed.style.color = "#b1492c";
+        failed.style.padding = "0.85rem 0";
+        failed.textContent = error.message || "Failed to load topics.";
+        box.appendChild(failed);
+      }
+    }
+
+    loadHomeTopics();
+  </script>
+</body>
+</html>

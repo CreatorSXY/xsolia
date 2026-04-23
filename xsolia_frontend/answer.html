@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Provide Feedback · xsolia.com</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/theme.css">
+</head>
+
+<body class="min-h-screen flex flex-col">
+  <!-- Shared navbar -->
+  <div id="navbar">
+    <header class="x-nav sticky top-0 z-50">
+      <div class="container h-full flex items-center justify-between gap-4 py-3">
+        <!-- Logo + site name -->
+        <a href="index.html" class="flex items-center gap-2">
+          <div
+            style="
+              width: 32px;
+              height: 32px;
+              border-radius: 999px;
+              background: linear-gradient(135deg, #ff9ac4, #7dd3fc);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-weight: 700;
+              color: #fff;
+            "
+          >
+            k
+          </div>
+          <div>
+            <div class="site-logo-text">xsolia.com</div>
+            <div class="site-subtitle">Early validation playground</div>
+          </div>
+        </a>
+
+        <!-- Right side: search + user -->
+        <div class="flex-1 flex items-center justify-end gap-4">
+          <!-- Search bar -->
+          <form
+            id="navSearchForm"
+            class="hidden md:flex items-center gap-2"
+            style="max-width: 260px; width: 100%;"
+          >
+            <input
+              id="navSearchInput"
+              type="search"
+              class="x-input"
+              placeholder="Search topics…"
+              style="padding-right: 2.2rem;"
+            />
+            <button
+              type="submit"
+              style="
+                margin-left: -2.1rem;
+                font-size: 0.8rem;
+                color: #9ca3af;
+              "
+            >
+              🔍
+            </button>
+          </form>
+
+          <!-- User info -->
+          <div
+            id="userInfo"
+            class="flex items-center gap-2"
+            style="font-size: 0.8rem; color: #6b7280;"
+          >
+            <div
+              id="userAvatar"
+              style="
+                width: 28px;
+                height: 28px;
+                border-radius: 999px;
+                background: linear-gradient(135deg, #7dd3fc, #a5b4fc);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: 600;
+                color: #fff;
+                text-transform: uppercase;
+              "
+            >
+              ?
+            </div>
+            <div class="flex flex-col">
+              <span id="userNameLabel">Guest</span>
+              <span id="userRoleLabel" style="font-size: 0.7rem; color: #9ca3af;">
+                Not signed in
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+  </div>
+
+  <!-- Main Content -->
+  <main class="flex-1 container" style="padding-top:1.5rem; padding-bottom:2rem;">
+    <section class="section" style="max-width:640px; margin:0 auto;">
+      <div class="x-card" id="wrapper">
+        <div style="margin-bottom:1rem;">
+          <h1 id="projTitle" style="font-size:1.4rem; font-weight:600; margin-bottom:0.25rem;">Loading...</h1>
+          <p id="projDesc" style="font-size:0.9rem; color:#4b5563; margin-bottom:0.25rem;"></p>
+          <p id="projMeta" style="font-size:0.8rem; color:#6b7280;"></p>
+        </div>
+
+        <form id="answerForm" class="space-y-4 hidden">
+          <!-- Interest Level -->
+          <div>
+            <label style="font-size:0.85rem; color:#374151;">Your interest in this idea (1–5)</label>
+            <select id="interest" class="x-input" style="max-width:260px; margin-top:0.25rem;">
+              <option value="5">5 - Very interested, would consider paying</option>
+              <option value="4">4 - Quite interested</option>
+              <option value="3">3 - Somewhat interested</option>
+              <option value="2">2 - Not very interested</option>
+              <option value="1">1 - Not interested at all</option>
+            </select>
+          </div>
+
+          <!-- Dynamic question fields -->
+          <div>
+            <label style="font-size:0.85rem; color:#374151; display:block; margin-bottom:0.25rem;">
+              Questions from the creator
+            </label>
+            <div id="questionsContainer" class="space-y-3"></div>
+          </div>
+
+          <!-- Price range (optional) -->
+          <div>
+            <label style="font-size:0.85rem; color:#374151;">What price range would you consider? (optional, USD)</label>
+            <div style="display:flex; gap:0.5rem; align-items:center; margin-top:0.25rem;">
+              <input
+                id="priceMin"
+                type="number"
+                min="0"
+                placeholder="Min"
+                class="x-input"
+                style="max-width:120px;"
+              />
+              <span style="font-size:0.85rem; color:#6b7280;">~</span>
+              <input
+                id="priceMax"
+                type="number"
+                min="0"
+                placeholder="Max"
+                class="x-input"
+                style="max-width:120px;"
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            class="x-btn-primary"
+            style="width:100%; justify-content:center; margin-top:0.5rem;"
+          >
+            Submit feedback
+          </button>
+        </form>
+
+        <p id="error" style="font-size:0.85rem; color:#f97373; margin-top:0.75rem; display:none;"></p>
+        <p id="success" style="font-size:0.85rem; color:#16a34a; margin-top:0.75rem; display:none;"></p>
+      </div>
+    </section>
+  </main>
+
+  <footer style="text-align:center; padding:1.5rem 0; font-size:0.75rem; color:#9ca3af;">
+    © 2025 xsolia.com
+  </footer>
+
+  <script src="js/app.js"></script>
+  <script src="js/nav.js"></script>
+  <script>
+    // Login check
+    const session = XsoliaApp.requireAuth({ redirect: 'login.html' });
+    if (!session) {
+      throw new Error('Authentication required');
+    }
+
+    // Get project ID
+    const params = new URLSearchParams(window.location.search);
+    const projectId = params.get('project_id');
+    if (!projectId) {
+      alert('Missing project_id. Please access from the topic list.');
+      window.location.href = 'explore.html';
+    }
+
+    async function loadProject() {
+      const titleEl = document.getElementById('projTitle');
+      const descEl = document.getElementById('projDesc');
+      const metaEl = document.getElementById('projMeta');
+      const formEl = document.getElementById('answerForm');
+      const qsContainer = document.getElementById('questionsContainer');
+      const errorEl = document.getElementById('error');
+
+      try {
+        const { response, data } = await XsoliaApp.apiFetch('/projects/active');
+        if (!response.ok) {
+          throw new Error(data.detail || 'Failed to load project');
+        }
+
+        const proj = data.find(p => String(p.id) === String(projectId));
+        if (!proj) {
+          throw new Error('The selected project could not be found, it may have been closed.');
+        }
+
+        titleEl.textContent = proj.title;
+        descEl.textContent = proj.description || '';
+        metaEl.textContent = `Target: ${proj.target_audience || 'Not specified'} · Budget: $${proj.budget || 0}`;
+
+        qsContainer.innerHTML = '';
+        if (proj.questions && proj.questions.length > 0) {
+          proj.questions.forEach((q, idx) => {
+            const block = document.createElement('div');
+
+            const label = document.createElement('label');
+            label.style.fontSize = '0.85rem';
+            label.style.color = '#374151';
+            label.style.display = 'block';
+            label.style.marginBottom = '0.25rem';
+            label.textContent = `Q${idx + 1}. ${q}`;
+
+            const ta = document.createElement('textarea');
+            ta.className = 'x-textarea';
+            ta.rows = 3;
+            ta.dataset.qindex = idx;
+
+            block.appendChild(label);
+            block.appendChild(ta);
+            qsContainer.appendChild(block);
+          });
+        }
+
+        formEl.classList.remove('hidden');
+      } catch (err) {
+        errorEl.textContent = err.message || 'Error loading project details.';
+        errorEl.style.display = 'block';
+      }
+    }
+
+    loadProject();
+
+    // Submit feedback
+    document.getElementById('answerForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const interest = Number(document.getElementById('interest').value);
+      const priceMinStr = document.getElementById('priceMin').value.trim();
+      const priceMaxStr = document.getElementById('priceMax').value.trim();
+
+      const answerTexts = [];
+      document.querySelectorAll('#questionsContainer textarea').forEach((ta) => {
+        answerTexts.push(ta.value.trim());
+      });
+
+      const payload = {
+        interest_level: interest,
+        answers: answerTexts,
+        price_min: priceMinStr ? Number(priceMinStr) : null,
+        price_max: priceMaxStr ? Number(priceMaxStr) : null
+      };
+
+      const errorEl = document.getElementById('error');
+      const successEl = document.getElementById('success');
+      errorEl.style.display = 'none';
+      successEl.style.display = 'none';
+
+      try {
+        const { response, data } = await XsoliaApp.apiFetch(`/projects/${projectId}/respond`, {
+          method: 'POST',
+          auth: true,
+          body: payload
+        });
+        if (!response.ok) {
+          throw new Error(data.detail || 'Failed to submit feedback.');
+        }
+        successEl.textContent = 'Thank you for your feedback! Returning to the topic list in 3 seconds.';
+        successEl.style.display = 'block';
+
+        setTimeout(() => {
+          window.location.href = 'explore.html';
+        }, 3000);
+      } catch (err) {
+        errorEl.textContent = err.message || 'An error occurred during submission.';
+        errorEl.style.display = 'block';
+      }
+    });
+  </script>
+</body>
+</html>

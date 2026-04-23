@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Creator Dashboard · xsolia.com</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/theme.css">
+</head>
+
+<body class="min-h-screen flex flex-col">
+
+  <!-- Shared navbar -->
+  <div id="navbar">
+    <header class="x-nav sticky top-0 z-50">
+      <div class="container h-full flex items-center justify-between gap-4 py-3">
+        <!-- Logo + site name -->
+        <a href="index.html" class="flex items-center gap-2">
+          <div
+            style="
+              width: 32px;
+              height: 32px;
+              border-radius: 999px;
+              background: linear-gradient(135deg, #ff9ac4, #7dd3fc);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-weight: 700;
+              color: #fff;
+            "
+          >
+            k
+          </div>
+          <div>
+            <div class="site-logo-text">xsolia.com</div>
+            <div class="site-subtitle">Early validation playground</div>
+          </div>
+        </a>
+
+        <!-- Right side: search + user -->
+        <div class="flex-1 flex items-center justify-end gap-4">
+          <!-- Search bar -->
+          <form
+            id="navSearchForm"
+            class="hidden md:flex items-center gap-2"
+            style="max-width: 260px; width: 100%;"
+          >
+            <input
+              id="navSearchInput"
+              type="search"
+              class="x-input"
+              placeholder="Search topics…"
+              style="padding-right: 2.2rem;"
+            />
+            <button
+              type="submit"
+              style="
+                margin-left: -2.1rem;
+                font-size: 0.8rem;
+                color: #9ca3af;
+              "
+            >
+              🔍
+            </button>
+          </form>
+
+          <!-- User info -->
+          <div
+            id="userInfo"
+            class="flex items-center gap-2"
+            style="font-size: 0.8rem; color: #6b7280;"
+          >
+            <div
+              id="userAvatar"
+              style="
+                width: 28px;
+                height: 28px;
+                border-radius: 999px;
+                background: linear-gradient(135deg, #7dd3fc, #a5b4fc);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: 600;
+                color: #fff;
+                text-transform: uppercase;
+              "
+            >
+              ?
+            </div>
+            <div class="flex flex-col">
+              <span id="userNameLabel">Guest</span>
+              <span id="userRoleLabel" style="font-size: 0.7rem; color: #9ca3af;">
+                Not signed in
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+  </div>
+
+  <!-- Main -->
+  <main class="flex-1 container" style="padding-top:1.5rem; padding-bottom:2rem;">
+
+    <!-- Hero row -->
+    <section class="section flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-semibold mb-1">Your validation topics</h1>
+        <p style="font-size:0.9rem; color:#6b7280;">
+          Quickly see how your ideas are performing — interest scores, price bands and how many people have responded.
+        </p>
+      </div>
+
+      <div class="flex flex-col items-end gap-2">
+        <span id="planBadge"
+              class="x-badge">
+          Plan: …
+        </span>
+
+        <button id="newTopicBtn"
+                class="x-btn-primary text-sm">
+          + New validation topic
+        </button>
+
+        <p id="planHint" style="font-size:0.7rem; color:#9ca3af; text-align:right;"></p>
+
+        <button id="logoutBtn"
+                class="x-btn-secondary text-xs"
+                style="padding-inline:0.7rem; padding-block:0.25rem;">
+          Log out
+        </button>
+      </div>
+    </section>
+
+    <!-- Stats overview -->
+    <section id="overviewRow" class="section grid sm:grid-cols-3 gap-4">
+      <div class="x-card">
+        <p style="font-size:0.75rem; color:#6b7280; margin-bottom:0.25rem;">Total topics</p>
+        <p id="totalTopics" class="text-2xl font-semibold">0</p>
+      </div>
+      <div class="x-card">
+        <p style="font-size:0.75rem; color:#6b7280; margin-bottom:0.25rem;">Total responses</p>
+        <p id="totalResponses" class="text-2xl font-semibold">0</p>
+      </div>
+      <div class="x-card">
+        <p style="font-size:0.75rem; color:#6b7280; margin-bottom:0.25rem;">Avg interest (all topics)</p>
+        <p id="avgInterestAll" class="text-2xl font-semibold">–</p>
+      </div>
+    </section>
+
+    <!-- Topic list -->
+    <section class="section">
+      <h2 style="font-size:1.05rem; font-weight:600; margin-bottom:0.6rem;">Topics you’ve published</h2>
+      <div id="topicsContainer" class="space-y-3"></div>
+      <p id="emptyHint" class="hidden" style="font-size:0.9rem; color:#9ca3af;">
+        You haven’t posted any validation topics yet. Start with one idea and 3–5 questions.
+      </p>
+      <p id="error" class="hidden" style="font-size:0.9rem; color:#f97373; margin-top:0.5rem;"></p>
+    </section>
+
+  </main>
+
+  <footer style="text-align:center; padding:1.5rem 0; font-size:0.75rem; color:#9ca3af;">
+    © 2025 xsolia.com
+  </footer>
+
+  <script src="js/app.js"></script>
+  <script src="js/nav.js"></script>
+  <script>
+    // --- Auth & basic info ---
+    const session = XsoliaApp.requireAuth({ role: "creator", redirect: "login.html?role=creator" });
+    if (!session) {
+      throw new Error("Authentication required");
+    }
+    const userId = Number(session.userId);
+    const role = session.role;
+    const name = session.name || "Creator";
+    const subscription = session.subscription || "free";
+
+    const newTopicBtn = document.getElementById("newTopicBtn");
+    const planBadge = document.getElementById("planBadge");
+    const planHint = document.getElementById("planHint");
+    const logoutBtn = document.getElementById("logoutBtn");
+
+    // redirect if not creator
+    // New topic button behavior
+    newTopicBtn.addEventListener("click", () => {
+      if (subscription === "free") {
+        alert("Posting topics is only available on Creator Basic or Creator Plus plans.");
+        // 将来这里可以跳到 upgrade 页面
+        // window.location.href = "billing.html";
+      } else {
+        window.location.href = "create.html";
+      }
+    });
+
+    // logout
+    logoutBtn.addEventListener("click", () => {
+      XsoliaApp.clearSession();
+      window.location.href = "index.html";
+    });
+
+    // show plan
+    let planLabel = "";
+    if (subscription === "creator_plus") planLabel = "Creator Plus";
+    else if (subscription === "creator_basic") planLabel = "Creator Basic";
+    else planLabel = "Read-only (Free)";
+
+    planBadge.textContent = `Plan: ${planLabel}`;
+
+    if (subscription === "free") {
+      planHint.textContent = "Upgrade to Basic or Plus to post new topics and access AI tools in the future.";
+    } else if (subscription === "creator_basic") {
+      planHint.textContent = "You can post topics. Upgrade to Plus later for AI summarization.";
+    } else {
+      planHint.textContent = "You’re on Plus. You’ll be able to use AI summaries when they’re ready.";
+    }
+
+    // --- Load creator topics & stats ---
+    const topicsContainer = document.getElementById("topicsContainer");
+    const emptyHint = document.getElementById("emptyHint");
+    const errorEl = document.getElementById("error");
+    const totalTopicsEl = document.getElementById("totalTopics");
+    const totalResponsesEl = document.getElementById("totalResponses");
+    const avgInterestAllEl = document.getElementById("avgInterestAll");
+
+    async function fetchProjectStats(projectId) {
+      const { response, data } = await XsoliaApp.apiFetch(`/projects/${projectId}/stats`, { auth: true });
+      if (!response.ok) {
+        return null;
+      }
+      return data;
+    }
+
+    async function loadCreatorTopics() {
+      topicsContainer.innerHTML = "";
+      emptyHint.classList.add("hidden");
+      errorEl.classList.add("hidden");
+
+      try {
+        const { response, data } = await XsoliaApp.apiFetch("/projects/active");
+        if (!response.ok) {
+          throw new Error(data.detail || "Failed to load topics");
+        }
+
+        // filter by creator_id
+        const myTopics = (data || []).filter(p => Number(p.creator_id) === userId);
+
+        if (myTopics.length === 0) {
+          emptyHint.classList.remove("hidden");
+          totalTopicsEl.textContent = "0";
+          totalResponsesEl.textContent = "0";
+          avgInterestAllEl.textContent = "–";
+          return;
+        }
+
+        totalTopicsEl.textContent = String(myTopics.length);
+
+        // load stats for each topic in parallel
+        const statsList = await Promise.all(
+          myTopics.map(t => fetchProjectStats(t.id))
+        );
+
+        // aggregate stats for overview
+        let totalResponses = 0;
+        let interestSum = 0;
+        let interestCount = 0;
+
+        myTopics.forEach((topic, idx) => {
+          const stats = statsList[idx];
+          const responsesCount = stats?.responses_count || 0;
+          const avgInterest = stats?.avg_interest;
+          const avgPriceMin = stats?.avg_price_min;
+          const avgPriceMax = stats?.avg_price_max;
+
+          totalResponses += responsesCount;
+          if (avgInterest != null && responsesCount > 0) {
+            interestSum += avgInterest;
+            interestCount += 1;
+          }
+
+          const card = document.createElement("div");
+          card.className = "x-card";
+
+          const row1 = document.createElement("div");
+          row1.className = "flex items-center justify-between mb-1";
+
+          const titleEl = document.createElement("h3");
+          titleEl.className = "text-base font-semibold";
+          titleEl.textContent = topic.title;
+
+          const statusBadge = document.createElement("span");
+          statusBadge.className = "x-badge";
+          statusBadge.textContent = "Active";
+
+          row1.appendChild(titleEl);
+          row1.appendChild(statusBadge);
+
+          const descEl = document.createElement("p");
+          descEl.className = "text-sm";
+          descEl.textContent = topic.description || "";
+
+          const metaEl = document.createElement("p");
+          metaEl.className = "text-xs mb-2";
+          metaEl.textContent = `Target: ${topic.target_audience || "N/A"} · Budget: $${topic.budget || 0}`;
+
+          const metricsEl = document.createElement("div");
+          metricsEl.className = "grid grid-cols-3 gap-3 text-xs mb-2";
+
+          const m1 = document.createElement("div");
+          const m1Label = document.createElement("div");
+          m1Label.style.fontSize = "0.7rem";
+          m1Label.style.color = "#6b7280";
+          m1Label.style.marginBottom = "0.15rem";
+          m1Label.textContent = "Responses";
+          const m1Value = document.createElement("div");
+          m1Value.style.fontSize = "0.9rem";
+          m1Value.textContent = String(responsesCount);
+          m1.appendChild(m1Label);
+          m1.appendChild(m1Value);
+
+          const m2 = document.createElement("div");
+          const m2Label = document.createElement("div");
+          m2Label.style.fontSize = "0.7rem";
+          m2Label.style.color = "#6b7280";
+          m2Label.style.marginBottom = "0.15rem";
+          m2Label.textContent = "Avg interest";
+          const m2Value = document.createElement("div");
+          m2Value.style.fontSize = "0.9rem";
+          m2Value.textContent = avgInterest != null ? avgInterest.toFixed(1) : "–";
+          m2.appendChild(m2Label);
+          m2.appendChild(m2Value);
+
+          const m3 = document.createElement("div");
+          let priceText = "–";
+          if (avgPriceMin != null && avgPriceMax != null) {
+            priceText = `$${avgPriceMin.toFixed(0)} – $${avgPriceMax.toFixed(0)}`;
+          }
+          const m3Label = document.createElement("div");
+          m3Label.style.fontSize = "0.7rem";
+          m3Label.style.color = "#6b7280";
+          m3Label.style.marginBottom = "0.15rem";
+          m3Label.textContent = "Price band";
+          const m3Value = document.createElement("div");
+          m3Value.style.fontSize = "0.9rem";
+          m3Value.textContent = priceText;
+          m3.appendChild(m3Label);
+          m3.appendChild(m3Value);
+
+          metricsEl.appendChild(m1);
+          metricsEl.appendChild(m2);
+          metricsEl.appendChild(m3);
+
+          const actionsRow = document.createElement("div");
+          actionsRow.className = "flex items-center justify-between mt-1";
+          actionsRow.style.fontSize = "0.8rem";
+
+          const qInfo = document.createElement("span");
+          qInfo.style.color = "#6b7280";
+          qInfo.textContent = `Questions: ${topic.questions ? topic.questions.length : 0}`;
+
+          const btnRow = document.createElement("div");
+          btnRow.className = "flex items-center gap-2";
+
+          const viewAsTester = document.createElement("a");
+          viewAsTester.href = `answer.html?project_id=${topic.id}`;
+          viewAsTester.className = "x-btn-secondary";
+          viewAsTester.style.fontSize = "0.8rem";
+          viewAsTester.style.paddingInline = "0.8rem";
+          viewAsTester.style.paddingBlock = "0.25rem";
+          viewAsTester.textContent = "View as tester";
+
+          const viewStatsBtn = document.createElement("button");
+          viewStatsBtn.type = "button";
+          viewStatsBtn.className = "x-btn-primary";
+          viewStatsBtn.style.fontSize = "0.8rem";
+          viewStatsBtn.style.paddingInline = "0.8rem";
+          viewStatsBtn.style.paddingBlock = "0.25rem";
+          viewStatsBtn.textContent = "Raw stats (JSON)";
+          viewStatsBtn.addEventListener("click", async () => {
+            const s = await fetchProjectStats(topic.id);
+            alert(JSON.stringify(s, null, 2));
+          });
+
+          btnRow.appendChild(viewAsTester);
+          btnRow.appendChild(viewStatsBtn);
+
+          actionsRow.appendChild(qInfo);
+          actionsRow.appendChild(btnRow);
+
+          card.appendChild(row1);
+          card.appendChild(descEl);
+          card.appendChild(metaEl);
+          card.appendChild(metricsEl);
+          card.appendChild(actionsRow);
+
+          topicsContainer.appendChild(card);
+        });
+
+        totalResponsesEl.textContent = String(totalResponses);
+        if (interestCount > 0) {
+          const avgAll = interestSum / interestCount;
+          avgInterestAllEl.textContent = avgAll.toFixed(1);
+        } else {
+          avgInterestAllEl.textContent = "–";
+        }
+
+      } catch (err) {
+        console.error(err);
+        errorEl.textContent = err.message || "Something went wrong while loading your topics.";
+        errorEl.classList.remove("hidden");
+      }
+    }
+
+    loadCreatorTopics();
+  </script>
+</body>
+</html>

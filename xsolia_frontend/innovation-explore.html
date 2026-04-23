@@ -1,0 +1,264 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Innovation zone · xsolia.com</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/theme.css" />
+</head>
+
+<body class="min-h-screen flex flex-col">
+  <!-- Shared navbar -->
+  <div id="navbar">
+    <header class="x-nav sticky top-0 z-50">
+      <div class="container h-full flex items-center justify-between gap-4 py-3">
+        <!-- Logo + site name -->
+        <a href="index.html" class="flex items-center gap-2">
+          <div
+            style="
+              width: 32px;
+              height: 32px;
+              border-radius: 999px;
+              background: linear-gradient(135deg, #ff9ac4, #7dd3fc);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-weight: 700;
+              color: #fff;
+            "
+          >
+            k
+          </div>
+          <div>
+            <div class="site-logo-text">xsolia.com</div>
+            <div class="site-subtitle">Early validation playground</div>
+          </div>
+        </a>
+
+        <!-- Right side: search + user -->
+        <div class="flex-1 flex items-center justify-end gap-4">
+          <!-- Search bar -->
+          <form
+            id="navSearchForm"
+            class="hidden md:flex items-center gap-2"
+            style="max-width: 260px; width: 100%;"
+          >
+            <input
+              id="navSearchInput"
+              type="search"
+              class="x-input"
+              placeholder="Search topics…"
+              style="padding-right: 2.2rem;"
+            />
+            <button
+              type="submit"
+              style="
+                margin-left: -2.1rem;
+                font-size: 0.8rem;
+                color: #9ca3af;
+              "
+            >
+              🔍
+            </button>
+          </form>
+
+          <!-- User info -->
+          <div
+            id="userInfo"
+            class="flex items-center gap-2"
+            style="font-size: 0.8rem; color: #6b7280;"
+          >
+            <div
+              id="userAvatar"
+              style="
+                width: 28px;
+                height: 28px;
+                border-radius: 999px;
+                background: linear-gradient(135deg, #7dd3fc, #a5b4fc);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: 600;
+                color: #fff;
+                text-transform: uppercase;
+              "
+            >
+              ?
+            </div>
+            <div class="flex flex-col">
+              <span id="userNameLabel">Guest</span>
+              <span id="userRoleLabel" style="font-size: 0.7rem; color: #9ca3af;">
+                Not signed in
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+  </div>
+
+  <!-- Main -->
+  <main class="flex-1 container" style="padding-top:1.5rem; padding-bottom:2rem;">
+    <section class="section" style="max-width:900px; margin:0 auto;">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
+        <div>
+          <h1 style="font-size:1.45rem; font-weight:600; margin-bottom:0.2rem;">Innovation pool</h1>
+          <p style="font-size:0.9rem; color:#6b7280; max-width:520px;">
+            A shared pool of half-baked ideas, problems, and hunches. Creators and testers can browse, save, and pick
+            ideas to explore.
+          </p>
+        </div>
+        <div style="font-size:0.8rem; color:#9ca3af; text-align:right;">
+          <p>Anyone with an account can post here.</p>
+        </div>
+      </div>
+
+      <div id="filters" class="flex flex-wrap gap-2 mb-3" style="font-size:0.8rem;">
+        <!-- Tag filters can be added later -->
+      </div>
+
+      <div id="innovationList" class="flex flex-col gap-3"></div>
+      <p id="emptyHint" class="hidden" style="font-size:0.9rem; color:#9ca3af; margin-top:0.5rem;">
+        No innovations posted yet. Be the first one to share an idea.
+      </p>
+      <p id="error" class="hidden" style="font-size:0.9rem; color:#f97373; margin-top:0.5rem;"></p>
+    </section>
+  </main>
+
+  <footer style="text-align:center; padding:1.5rem 0; font-size:0.75rem; color:#9ca3af;">
+    © 2025 xsolia.com
+  </footer>
+
+  <script src="js/app.js"></script>
+  <script src="js/nav.js"></script>
+  <script>
+    const listEl = document.getElementById("innovationList");
+    const emptyHintEl = document.getElementById("emptyHint");
+    const errorEl = document.getElementById("error");
+
+    async function loadInnovations() {
+      try {
+        const { response, data } = await XsoliaApp.apiFetch("/innovations");
+        if (!response.ok) {
+          throw new Error(data.detail || "Failed to load innovations.");
+        }
+        renderInnovations(data);
+      } catch (err) {
+        errorEl.textContent = err.message || "Error loading innovations.";
+        errorEl.classList.remove("hidden");
+      }
+    }
+
+    function renderInnovations(items) {
+      listEl.innerHTML = "";
+      errorEl.classList.add("hidden");
+
+      if (!items.length) {
+        emptyHintEl.classList.remove("hidden");
+        return;
+      }
+      emptyHintEl.classList.add("hidden");
+
+      items.forEach((inv) => {
+        const card = document.createElement("div");
+        card.className = "x-card";
+
+        const header = document.createElement("div");
+        header.className = "flex items-center justify-between mb-1";
+
+        const titleEl = document.createElement("h2");
+        titleEl.style.fontSize = "1rem";
+        titleEl.style.fontWeight = "600";
+        titleEl.textContent = inv.title;
+
+        const metaRight = document.createElement("div");
+        metaRight.style.fontSize = "0.75rem";
+        metaRight.style.color = "#9ca3af";
+        const created = inv.created_at ? new Date(inv.created_at) : null;
+        metaRight.textContent = created ? created.toLocaleDateString() : "";
+
+        header.appendChild(titleEl);
+        header.appendChild(metaRight);
+
+        const descEl = document.createElement("p");
+        descEl.style.fontSize = "0.9rem";
+        descEl.style.color = "#4b5563";
+        descEl.style.marginBottom = "0.4rem";
+        descEl.textContent = inv.description || "";
+
+        const tagsRow = document.createElement("div");
+        tagsRow.className = "flex flex-wrap gap-1";
+        tagsRow.style.fontSize = "0.75rem";
+        const tags = inv.tags || [];
+        if (tags.length) {
+          tags.forEach((tag) => {
+            const pill = document.createElement("span");
+            pill.style.padding = "0.15rem 0.55rem";
+            pill.style.borderRadius = "999px";
+            pill.style.background = "#eef2ff";
+            pill.style.color = "#4338ca";
+            pill.textContent = tag;
+            tagsRow.appendChild(pill);
+          });
+        }
+
+        const metaRow = document.createElement("div");
+        metaRow.className = "flex items-center justify-between";
+        metaRow.style.marginTop = "0.5rem";
+        metaRow.style.fontSize = "0.8rem";
+
+        const leftMeta = document.createElement("span");
+        leftMeta.style.color = "#6b7280";
+        leftMeta.textContent = `By user #${inv.author_id}`;
+
+        const rightMeta = document.createElement("div");
+        rightMeta.style.display = "flex";
+        rightMeta.style.alignItems = "center";
+        rightMeta.style.gap = "0.5rem";
+
+        const intentBadge = document.createElement("span");
+        intentBadge.style.fontSize = "0.75rem";
+        intentBadge.style.padding = "0.15rem 0.55rem";
+        intentBadge.style.borderRadius = "999px";
+        intentBadge.style.background = "#ecfeff";
+        intentBadge.style.color = "#155e75";
+        intentBadge.textContent = formatIntent(inv.intent);
+
+        const upvoteInfo = document.createElement("span");
+        upvoteInfo.style.color = "#9ca3af";
+        upvoteInfo.textContent = `Upvotes: ${inv.upvotes ?? 0}`;
+
+        rightMeta.appendChild(intentBadge);
+        rightMeta.appendChild(upvoteInfo);
+
+        metaRow.appendChild(leftMeta);
+        metaRow.appendChild(rightMeta);
+
+        card.appendChild(header);
+        card.appendChild(descEl);
+        if (tags.length) card.appendChild(tagsRow);
+        card.appendChild(metaRow);
+
+        listEl.appendChild(card);
+      });
+    }
+
+    function formatIntent(intent) {
+      switch (intent) {
+        case "looking_for_team":
+          return "Looking for collaborators";
+        case "just_idea":
+          return "Free to take";
+        case "open":
+        default:
+          return "Just sharing";
+      }
+    }
+
+    loadInnovations();
+  </script>
+</body>
+</html>

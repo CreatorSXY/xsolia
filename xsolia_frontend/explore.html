@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Browse Validation Topics · xsolia.com</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/theme.css">
+  <style>
+    .filter-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .filter-pill {
+      border-radius: 999px;
+      border: 1px solid #d5cabb;
+      background: #fbf7f2;
+      color: #5f544a;
+      padding: 0.35rem 0.85rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      transition: all 170ms ease;
+    }
+
+    .filter-pill:hover {
+      border-color: #c7633c;
+      color: #9f4320;
+    }
+
+    .filter-pill-active {
+      background: #1f1b18;
+      color: #f8f2ea;
+      border-color: #1f1b18;
+    }
+
+    .topic-list {
+      border: 1px solid #d8cec2;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.56);
+      padding: 0.2rem 1rem;
+    }
+
+    .topic-item {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 1rem;
+      align-items: center;
+      padding: 1rem 0;
+      border-bottom: 1px solid rgba(214, 205, 194, 0.75);
+    }
+
+    .topic-item:last-child {
+      border-bottom: none;
+    }
+
+    .topic-heading {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 700;
+      color: #231e1a;
+    }
+
+    .topic-description {
+      margin-top: 0.35rem;
+      margin-bottom: 0.35rem;
+      color: #564b42;
+      font-size: 0.87rem;
+    }
+
+    .topic-meta {
+      color: #7a6e62;
+      font-size: 0.79rem;
+    }
+
+    .topic-chip {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      border: 1px solid #d9c8b6;
+      padding: 0.14rem 0.5rem;
+      background: #fcf3ea;
+      color: #8b4f2d;
+      font-size: 0.72rem;
+      margin-right: 0.34rem;
+      margin-top: 0.15rem;
+    }
+
+    @media (max-width: 760px) {
+      .topic-item {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body class="min-h-screen flex flex-col">
+  <div id="navbar">
+    <header class="x-nav sticky top-0 z-50">
+      <div class="container h-full flex items-center justify-between gap-4 py-3">
+        <a href="index.html" class="flex items-center gap-2">
+          <div
+            style="
+              width: 32px;
+              height: 32px;
+              border-radius: 999px;
+              background: linear-gradient(135deg, #dd8f62, #c7633c);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-weight: 700;
+              color: #fff;
+            "
+          >
+            k
+          </div>
+          <div>
+            <div class="site-logo-text">xsolia.com</div>
+            <div class="site-subtitle">Validation workspace</div>
+          </div>
+        </a>
+
+        <div class="flex-1 flex items-center justify-end gap-4">
+          <form
+            id="navSearchForm"
+            class="hidden md:flex items-center gap-2"
+            style="max-width: 260px; width: 100%;"
+          >
+            <input
+              id="navSearchInput"
+              type="search"
+              class="x-input"
+              placeholder="Search topics…"
+              style="padding-right: 2.2rem;"
+            />
+            <button
+              type="submit"
+              style="
+                margin-left: -2.1rem;
+                font-size: 0.8rem;
+                color: #9ca3af;
+              "
+            >
+              🔍
+            </button>
+          </form>
+
+          <div
+            id="userInfo"
+            class="flex items-center gap-2"
+            style="font-size: 0.8rem; color: #6b7280;"
+          >
+            <div
+              id="userAvatar"
+              style="
+                width: 28px;
+                height: 28px;
+                border-radius: 999px;
+                background: linear-gradient(135deg, #d58f66, #c7633c);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: 600;
+                color: #fff;
+                text-transform: uppercase;
+              "
+            >
+              ?
+            </div>
+            <div class="flex flex-col">
+              <span id="userNameLabel">Guest</span>
+              <span id="userRoleLabel" style="font-size: 0.7rem; color: #9ca3af;">Not signed in</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+  </div>
+
+  <main class="flex-1 container" style="padding-top:1.7rem; padding-bottom:2rem;">
+    <section>
+      <h1 style="font-size:1.55rem; line-height:1.1; margin:0; font-weight:800; color:#1f1b18;">Active Validation Topics</h1>
+      <p style="font-size:0.9rem; color:#6e6259; margin-top:0.42rem; max-width:58ch;">
+        Scan open projects, pick one aligned with your experience, and submit practical feedback in minutes.
+      </p>
+    </section>
+
+    <section class="section" style="margin-top:1.05rem;">
+      <div style="font-size:0.78rem; color:#74685d; margin-bottom:0.45rem;">Filter by domain</div>
+      <div id="categoryFilters" class="filter-wrap">
+        <button type="button" class="filter-pill filter-pill-active" data-main="">All</button>
+        <button type="button" class="filter-pill" data-main="digital">Digital</button>
+        <button type="button" class="filter-pill" data-main="physical">Physical</button>
+        <button type="button" class="filter-pill" data-main="service">Service</button>
+        <button type="button" class="filter-pill" data-main="education">Education</button>
+        <button type="button" class="filter-pill" data-main="health">Health</button>
+        <button type="button" class="filter-pill" data-main="testing">Legacy testing</button>
+      </div>
+    </section>
+
+    <section class="section" style="margin-top:1rem;">
+      <div id="projectsContainer" class="topic-list"></div>
+      <p id="emptyHint" class="hidden" style="font-size:0.9rem; color:#8f8276; margin-top:0.75rem;">
+        No topics under this filter.
+      </p>
+      <p id="error" class="hidden" style="font-size:0.9rem; color:#b1492c; margin-top:0.75rem;"></p>
+    </section>
+  </main>
+
+  <footer style="text-align:center; padding:1.5rem 0; font-size:0.75rem; color:#9ca3af;">
+    © 2026 xsolia.com
+  </footer>
+
+  <script src="js/app.js"></script>
+  <script src="js/nav.js"></script>
+  <script>
+    const session = XsoliaApp.requireAuth({ redirect: "login.html" });
+    if (!session) {
+      throw new Error("Authentication required");
+    }
+
+    const SUBCATEGORY_LABELS = {
+      software: "Software & digital tools",
+      clothing: "Clothing & accessories",
+      daily_use: "Daily-use products",
+      other: "Other",
+      digital_consumer_app: "Consumer apps",
+      digital_productivity_tool: "Productivity & knowledge tools",
+      digital_dev_tool: "Developer tools / APIs",
+      digital_b2b_saas: "B2B SaaS",
+      digital_ai_product: "AI-powered products",
+      digital_game_entertainment: "Games & entertainment",
+      physical_clothing: "Clothing & accessories",
+      physical_home_living: "Home & living",
+      physical_gadgets: "Gadgets & small hardware",
+      physical_stationery: "Stationery & study supplies",
+      physical_food_beverage: "Food & beverage",
+      physical_outdoor_sports: "Outdoor & sports gear",
+      service_local: "Local services",
+      service_travel_experience: "Travel & experiences",
+      service_on_demand: "On-demand services",
+      service_consulting: "Consulting",
+      service_subscription: "Subscription services",
+      edu_online_course: "Online courses",
+      edu_tutoring_coaching: "Tutoring & coaching",
+      edu_learning_tool: "Learning tools",
+      edu_creator_tool: "Creator tools",
+      edu_community: "Communities",
+      health_fitness: "Fitness",
+      health_nutrition: "Nutrition",
+      health_sleep: "Sleep & recovery",
+      health_mental: "Mental wellbeing",
+      health_habit: "Habit building",
+    };
+
+    let allProjects = [];
+    let currentMainCategory = "";
+
+    const container = document.getElementById("projectsContainer");
+    const emptyHint = document.getElementById("emptyHint");
+    const errorEl = document.getElementById("error");
+
+    function getSubcategoryLabel(subcategory) {
+      if (!subcategory) return "";
+      return SUBCATEGORY_LABELS[subcategory] || subcategory.replaceAll("_", " ");
+    }
+
+    function matchesCategory(project, mainCategory) {
+      if (!mainCategory) return true;
+      if ((project.main_category || "") === mainCategory) return true;
+      if (mainCategory === "testing") return (project.main_category || "") === "testing";
+      const subcategory = project.subcategory || "";
+      return subcategory.startsWith(`${mainCategory}_`);
+    }
+
+    function createTopicItem(project) {
+      const wrapper = document.createElement("article");
+      wrapper.className = "topic-item";
+
+      const left = document.createElement("div");
+
+      const title = document.createElement("h2");
+      title.className = "topic-heading";
+      title.textContent = project.title || "Untitled topic";
+
+      const desc = document.createElement("p");
+      desc.className = "topic-description";
+      desc.textContent = project.description || "No description provided.";
+
+      const chips = document.createElement("div");
+      const mainChip = document.createElement("span");
+      mainChip.className = "topic-chip";
+      mainChip.textContent = project.main_category || "testing";
+      chips.appendChild(mainChip);
+
+      const subcategoryLabel = getSubcategoryLabel(project.subcategory);
+      if (subcategoryLabel) {
+        const subChip = document.createElement("span");
+        subChip.className = "topic-chip";
+        subChip.textContent = subcategoryLabel;
+        chips.appendChild(subChip);
+      }
+
+      const meta = document.createElement("div");
+      meta.className = "topic-meta";
+      const questionCount = Array.isArray(project.questions) ? project.questions.length : 0;
+      meta.textContent = `Target: ${project.target_audience || "Not specified"} · Questions: ${questionCount} · Budget: $${project.budget || 0}`;
+
+      left.appendChild(title);
+      left.appendChild(desc);
+      left.appendChild(chips);
+      left.appendChild(meta);
+
+      const action = document.createElement("a");
+      action.href = `answer.html?project_id=${project.id}`;
+      action.className = "x-btn-primary";
+      action.style.fontSize = "0.82rem";
+      action.textContent = "Answer";
+
+      wrapper.appendChild(left);
+      wrapper.appendChild(action);
+      return wrapper;
+    }
+
+    function renderProjects() {
+      container.textContent = "";
+      emptyHint.classList.add("hidden");
+      errorEl.classList.add("hidden");
+
+      const visible = allProjects.filter((project) => matchesCategory(project, currentMainCategory));
+      if (!visible.length) {
+        emptyHint.classList.remove("hidden");
+        return;
+      }
+
+      visible.forEach((project) => {
+        container.appendChild(createTopicItem(project));
+      });
+    }
+
+    function setupFilters() {
+      const buttons = document.querySelectorAll("#categoryFilters button[data-main]");
+      buttons.forEach((button) => {
+        button.addEventListener("click", () => {
+          currentMainCategory = button.getAttribute("data-main") || "";
+          buttons.forEach((item) => item.classList.remove("filter-pill-active"));
+          button.classList.add("filter-pill-active");
+          renderProjects();
+        });
+      });
+    }
+
+    async function fetchProjects() {
+      container.textContent = "";
+      try {
+        const { response, data } = await XsoliaApp.apiFetch("/projects/active");
+        if (!response.ok) {
+          throw new Error((data && data.detail) || "Failed to load topics");
+        }
+        allProjects = Array.isArray(data) ? data : [];
+        renderProjects();
+      } catch (error) {
+        errorEl.textContent = error.message || "Failed to load topics.";
+        errorEl.classList.remove("hidden");
+      }
+    }
+
+    setupFilters();
+    fetchProjects();
+  </script>
+</body>
+</html>
