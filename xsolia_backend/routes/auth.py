@@ -312,12 +312,10 @@ def get_creator_dashboard(
     )
     top_signal_map: dict[int, str] = {}
     for project_id, response in top_response_by_project.items():
-        first_answer = next(
-            (row.text for row in answer_map.get(response.id, []) if row.text and row.text.strip()),
-            "",
-        )
-        if first_answer:
-            top_signal_map[project_id] = first_answer
+        answers = [row for row in answer_map.get(response.id, []) if row.text and row.text.strip()]
+        best_answer = max(answers, key=lambda a: len(a.text), default=None)
+        if best_answer:
+            top_signal_map[project_id] = best_answer.text
 
     total_responses = int(sum(item.get("responses_count", 0) for item in stats_map.values()))
     avg_interest_overall = session.exec(

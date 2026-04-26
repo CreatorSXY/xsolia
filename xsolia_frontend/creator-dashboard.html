@@ -185,6 +185,16 @@
   <script src="js/logo.js"></script>
   <script src="js/nav.js"></script>
   <script>
+    function formatStage(stage) {
+      return {
+        draft_or_low_signal: "Early stage",
+        testing:             "Gathering signal",
+        enough_signal:       "Signal confirmed",
+        weak_signal:         "Weak signal",
+        decision_needed:     "Ready to decide",
+      }[stage] || stage;
+    }
+
     // --- Auth & basic info ---
     const session = XsoliaApp.requireAuth({ role: "creator", redirect: "login.html?role=creator" });
     if (!session) {
@@ -414,7 +424,7 @@
 
           const stageBadge = document.createElement("span");
           stageBadge.className = "x-badge";
-          stageBadge.textContent = topic.decision_stage || "draft_or_low_signal";
+          stageBadge.textContent = formatStage(topic.decision_stage);
 
           const signalEl = document.createElement("p");
           signalEl.style.fontSize = "0.78rem";
@@ -428,7 +438,7 @@
 
           const qInfo = document.createElement("span");
           qInfo.style.color = "#6b7280";
-          qInfo.textContent = `Stage: ${topic.decision_stage || "draft_or_low_signal"}`;
+          qInfo.textContent = `Stage: ${formatStage(topic.decision_stage)}`;
 
           const btnRow = document.createElement("div");
           btnRow.className = "flex items-center gap-2";

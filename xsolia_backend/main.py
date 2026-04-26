@@ -46,7 +46,7 @@ SUBSCRIPTIONS = {"free", "creator_basic", "creator_plus"}
 INNOVATION_INTENTS = {"open", "looking_for_team", "just_idea"}
 PROJECT_STATUS_UPDATES = {"active", "closed", "archived"}
 INNOVATION_STATUS_UPDATES = {"active", "archived"}
-PROJECT_VISIBILITIES = {"public", "tester_only", "invite_only", "private_link"}
+PROJECT_VISIBILITIES = {"public", "tester_only", "invite_only", "unlisted"}
 PROJECT_DETAIL_LEVELS = {"problem_only", "concept_summary", "full_description"}
 
 PBKDF2_ITERATIONS = int(
@@ -915,6 +915,7 @@ def ensure_project_columns() -> None:
                 )
             connection.execute(text('UPDATE "project" SET image_urls = \'[]\' WHERE image_urls IS NULL OR trim(image_urls) = \'\''))
             connection.execute(text('UPDATE "project" SET visibility = \'public\' WHERE visibility IS NULL OR trim(visibility) = \'\''))
+            connection.execute(text('UPDATE "project" SET visibility = \'unlisted\' WHERE visibility = \'private_link\''))
             connection.execute(text('UPDATE "project" SET detail_level = \'concept_summary\' WHERE detail_level IS NULL OR trim(detail_level) = \'\''))
             connection.execute(text("UPDATE \"project\" SET allow_indexing = 0 WHERE allow_indexing IS NULL"))
             connection.execute(text('CREATE INDEX IF NOT EXISTS ix_project_source_innovation_id ON "project" (source_innovation_id)'))
@@ -928,6 +929,7 @@ def ensure_project_columns() -> None:
             connection.execute(text('ALTER TABLE "project" ADD COLUMN IF NOT EXISTS source_innovation_id INTEGER'))
             connection.execute(text("UPDATE \"project\" SET image_urls = '[]' WHERE image_urls IS NULL OR btrim(image_urls) = ''"))
             connection.execute(text("UPDATE \"project\" SET visibility = 'public' WHERE visibility IS NULL OR btrim(visibility) = ''"))
+            connection.execute(text("UPDATE \"project\" SET visibility = 'unlisted' WHERE visibility = 'private_link'"))
             connection.execute(text("UPDATE \"project\" SET detail_level = 'concept_summary' WHERE detail_level IS NULL OR btrim(detail_level) = ''"))
             connection.execute(text("UPDATE \"project\" SET allow_indexing = FALSE WHERE allow_indexing IS NULL"))
             connection.execute(text('CREATE INDEX IF NOT EXISTS ix_project_source_innovation_id ON "project" (source_innovation_id)'))
@@ -1011,7 +1013,7 @@ def can_view_project(project: Project, current_user: Optional[User]) -> bool:
         return current_user is not None and current_user.role in {"tester", "creator"}
     if visibility == "invite_only":
         return False
-    if visibility == "private_link":
+    if visibility == "unlisted":
         return True
     return True
 
@@ -1029,11 +1031,11 @@ def _compute_reliability_score(
     accepted_responses_count: int,
     streak_best: int,
 ) -> int:
-    score = 0
-    score += min(responses_count * 2, 40)
-    score += min(accepted_responses_count * 5, 40)
-    score += min(streak_best * 2, 20)
-    return max(0, min(100, int(score)))
+    acceptance_rate = accepted_responses_count / responses_count if responses_count > 0 else 0.0
+    volume_score = min(responses_count * 2, 30)
+    quality_score = int(acceptance_rate * 50)
+    streak_score = min(streak_best * 2, 20)
+    return max(0, min(100, volume_score + quality_score + streak_score))
 
 
 def build_tester_reputation_map(
@@ -1431,15 +1433,13 @@ def infer_validation_category_from_innovation(innovation: Innovation) -> Optiona
 
 
 def compute_creator_decision_stage(responses_count: int, avg_interest: Optional[float]) -> str:
-    if responses_count >= 20:
-        return "decision_needed"
     if responses_count < 5:
         return "draft_or_low_signal"
-    if responses_count < 15:
-        return "testing"
     if avg_interest is not None and avg_interest >= 3.5:
-        return "enough_signal"
-    return "weak_signal"
+        return "decision_needed" if responses_count >= 20 else "enough_signal"
+    if responses_count >= 20:
+        return "weak_signal"
+    return "testing"
 
 
 def update_tester_streak(tester: User) -> None:

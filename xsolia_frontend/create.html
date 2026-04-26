@@ -267,7 +267,7 @@
                   <option value="public">Public — anyone can browse this validation topic</option>
                   <option value="tester_only">Tester-only — only logged-in testers can view and answer</option>
                   <option value="invite_only" disabled>Invite-only — hidden from explore; invitation support coming soon.</option>
-                  <option value="private_link">Private link — hidden from explore, accessible by direct link</option>
+                  <option value="unlisted">Unlisted — hidden from explore, accessible by direct link</option>
                 </select>
                 <span id="err-visibility" style="display:none; font-size:0.75rem; color:#f97373;"></span>
               </div>
@@ -757,7 +757,7 @@
 	        clientErrors.image_urls = 'Each image URL must be 2048 characters or fewer.';
 	      }
 		      if (reward.length > 500) clientErrors.reward_note = 'Reward note is too long.';
-          if (!['public', 'tester_only', 'invite_only', 'private_link'].includes(visibility)) {
+          if (!['public', 'tester_only', 'invite_only', 'unlisted'].includes(visibility)) {
             clientErrors.visibility = 'Please select a valid visibility mode.';
           }
           if (!['problem_only', 'concept_summary', 'full_description'].includes(detailLevel)) {
