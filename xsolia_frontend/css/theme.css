@@ -60,6 +60,26 @@ body {
   color: var(--ink-strong);
 }
 
+.site-logo-mark {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  overflow: hidden;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(214, 205, 194, 0.85);
+  background: #fff;
+}
+
+.site-logo-mark-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
 .site-subtitle {
   font-size: 0.74rem;
   color: var(--ink-muted);

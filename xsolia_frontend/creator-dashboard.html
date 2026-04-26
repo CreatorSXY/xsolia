@@ -165,6 +165,7 @@
   </footer>
 
   <script src="js/app.js"></script>
+  <script src="js/logo.js"></script>
   <script src="js/nav.js"></script>
   <script>
     // --- Auth & basic info ---
@@ -204,12 +205,12 @@
     let planLabel = "";
     if (subscription === "creator_plus") planLabel = "Creator Plus";
     else if (subscription === "creator_basic") planLabel = "Creator Basic";
-    else planLabel = "Read-only (Free)";
+    else planLabel = "Creator Free Trial";
 
     planBadge.textContent = `Plan: ${planLabel}`;
 
     if (subscription === "free") {
-      planHint.textContent = "Upgrade to Basic or Plus to post new topics and access AI tools in the future.";
+      planHint.textContent = "Free creators can publish one topic, then upgrade to keep posting and unlock premium tools.";
     } else if (subscription === "creator_basic") {
       planHint.textContent = "You can post topics. Upgrade to Plus later for AI summarization.";
     } else {
@@ -238,13 +239,14 @@
       errorEl.classList.add("hidden");
 
       try {
-        const { response, data } = await XsoliaApp.apiFetch("/projects/active");
+        const { response, data } = await XsoliaApp.apiFetch("/projects/mine?status=active&limit=100&offset=0", {
+          auth: true
+        });
         if (!response.ok) {
           throw new Error(data.detail || "Failed to load topics");
         }
 
-        // filter by creator_id
-        const myTopics = (data || []).filter(p => Number(p.creator_id) === userId);
+        const myTopics = data || [];
 
         if (myTopics.length === 0) {
           emptyHint.classList.remove("hidden");

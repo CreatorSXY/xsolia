@@ -173,6 +173,7 @@
   </footer>
 
   <script src="js/app.js"></script>
+  <script src="js/logo.js"></script>
   <script src="js/nav.js"></script>
   <script>
     // Login check
@@ -198,15 +199,12 @@
       const errorEl = document.getElementById('error');
 
       try {
-        const { response, data } = await XsoliaApp.apiFetch('/projects/active');
+        const { response, data } = await XsoliaApp.apiFetch(`/projects/${projectId}`);
         if (!response.ok) {
           throw new Error(data.detail || 'Failed to load project');
         }
 
-        const proj = data.find(p => String(p.id) === String(projectId));
-        if (!proj) {
-          throw new Error('The selected project could not be found, it may have been closed.');
-        }
+        const proj = data;
 
         titleEl.textContent = proj.title;
         descEl.textContent = proj.description || '';

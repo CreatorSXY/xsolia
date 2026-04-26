@@ -137,6 +137,7 @@
   </footer>
 
   <script src="js/app.js"></script>
+  <script src="js/logo.js"></script>
   <script src="js/nav.js"></script>
   <script>
     const session = XsoliaApp.requireAuth({ role: "creator", redirect: "login.html?role=creator" });
@@ -164,16 +165,13 @@
 
     async function loadProjectAndResponses() {
       try {
-        // 1) 从 active 列表里找到当前 project（拿到 title / description / questions / creator_id）
-        const { response: projectRes, data: projectData } = await XsoliaApp.apiFetch("/projects/active");
+        // 1) 拉取当前 project（拿到 title / description / questions / creator_id）
+        const { response: projectRes, data: projectData } = await XsoliaApp.apiFetch(`/projects/${projectId}`);
         if (!projectRes.ok) {
-          throw new Error(projectData.detail || "Failed to load project list.");
+          throw new Error(projectData.detail || "Failed to load project.");
         }
 
-        const proj = projectData.find((p) => String(p.id) === String(projectId));
-        if (!proj) {
-          throw new Error("This topic could not be found. It may have been closed.");
-        }
+        const proj = projectData;
         currentProject = proj;
 
         // 权限：确保当前 creator 是该 topic 的创建者
@@ -190,7 +188,7 @@
         projectMetaEl.textContent = `Target: ${target} · Budget: $${budget}`;
 
         // 2) 拉取该 project 的所有回答
-        const { response: respRes, data: respData } = await XsoliaApp.apiFetch(`/projects/${projectId}/responses`, {
+        const { response: respRes, data: respData } = await XsoliaApp.apiFetch(`/projects/${projectId}/responses?limit=100&offset=0`, {
           auth: true
         });
         if (!respRes.ok) {

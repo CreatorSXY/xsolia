@@ -104,7 +104,7 @@
       <div class="x-card">
         <h1 style="font-size:1.4rem; font-weight:600; margin-bottom:0.4rem;">Create validation topic</h1>
         <p style="font-size:0.9rem; color:#6b7280; margin-bottom:1rem;">
-          Describe your idea and ask a handful of focused questions to understand your market. Only creators with an active subscription can post.
+          Describe your idea and ask a handful of focused questions to understand your market. New creators can publish one free topic before upgrading.
         </p>
 
         <form id="projectForm" class="space-y-4">
@@ -253,6 +253,7 @@
   </footer>
 
   <script src="js/app.js"></script>
+  <script src="js/logo.js"></script>
   <script src="js/nav.js"></script>
   <script>
     // Check creator status and subscription
@@ -262,8 +263,8 @@
     }
 
     const subscription = session.subscription;
-    if (subscription !== 'creator_basic' && subscription !== 'creator_plus') {
-      alert('You need an active creator subscription to post topics.');
+    if (subscription !== 'free' && subscription !== 'creator_basic' && subscription !== 'creator_plus') {
+      alert('You need a creator account to post topics.');
       window.location.href = 'creator-dashboard.html';
     }
 
