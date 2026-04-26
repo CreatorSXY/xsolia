@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Creator Dashboard · xsolia.com</title>
+  <title>Creator Dashboard · Krotka.ai by xSolia</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="css/theme.css">
+  <link rel="stylesheet" href="css/theme.css?v=20260424-gsap">
 </head>
 
 <body class="min-h-screen flex flex-col">
@@ -32,7 +32,7 @@
             k
           </div>
           <div>
-            <div class="site-logo-text">xsolia.com</div>
+            <div class="site-logo-text">Krotka.ai by xSolia</div>
             <div class="site-subtitle">Early validation playground</div>
           </div>
         </a>
@@ -100,10 +100,10 @@
   </div>
 
   <!-- Main -->
-  <main class="flex-1 container" style="padding-top:1.5rem; padding-bottom:2rem;">
+  <main class="flex-1 container workspace-shell" style="padding-top:1.5rem; padding-bottom:2rem;">
 
     <!-- Hero row -->
-    <section class="section flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <section class="section workspace-hero motion-reveal">
       <div>
         <h1 class="text-2xl font-semibold mb-1">Your validation topics</h1>
         <p style="font-size:0.9rem; color:#6b7280;">
@@ -124,6 +124,12 @@
 
         <p id="planHint" style="font-size:0.7rem; color:#9ca3af; text-align:right;"></p>
 
+        <button id="publicProfileBtn"
+                class="x-btn-secondary text-xs"
+                style="padding-inline:0.7rem; padding-block:0.25rem;">
+          Your public profile
+        </button>
+
         <button id="logoutBtn"
                 class="x-btn-secondary text-xs"
                 style="padding-inline:0.7rem; padding-block:0.25rem;">
@@ -133,24 +139,35 @@
     </section>
 
     <!-- Stats overview -->
-    <section id="overviewRow" class="section grid sm:grid-cols-3 gap-4">
+    <section id="overviewRow" class="section metric-row grid sm:grid-cols-4 gap-4 motion-reveal">
       <div class="x-card">
-        <p style="font-size:0.75rem; color:#6b7280; margin-bottom:0.25rem;">Total topics</p>
-        <p id="totalTopics" class="text-2xl font-semibold">0</p>
+        <p style="font-size:0.75rem; color:#6b7280; margin-bottom:0.25rem;">Active projects</p>
+        <p id="activeProjects" class="text-2xl font-semibold">0</p>
       </div>
       <div class="x-card">
         <p style="font-size:0.75rem; color:#6b7280; margin-bottom:0.25rem;">Total responses</p>
         <p id="totalResponses" class="text-2xl font-semibold">0</p>
       </div>
       <div class="x-card">
-        <p style="font-size:0.75rem; color:#6b7280; margin-bottom:0.25rem;">Avg interest (all topics)</p>
+        <p style="font-size:0.75rem; color:#6b7280; margin-bottom:0.25rem;">Average interest</p>
         <p id="avgInterestAll" class="text-2xl font-semibold">–</p>
+      </div>
+      <div class="x-card">
+        <p style="font-size:0.75rem; color:#6b7280; margin-bottom:0.25rem;">Projects needing decision</p>
+        <p id="projectsNeedingDecision" class="text-2xl font-semibold">0</p>
       </div>
     </section>
 
     <!-- Topic list -->
-    <section class="section">
-      <h2 style="font-size:1.05rem; font-weight:600; margin-bottom:0.6rem;">Topics you’ve published</h2>
+    <section class="section surface-list motion-reveal">
+      <div class="flex flex-wrap items-center justify-between gap-3" style="margin-bottom:0.6rem;">
+        <h2 style="font-size:1.05rem; font-weight:600; margin:0;">Topics you’ve published</h2>
+        <select id="statusFilter" class="x-input" style="max-width:180px;font-size:0.82rem;">
+          <option value="active">Active</option>
+          <option value="closed">Closed</option>
+          <option value="archived">Archived</option>
+        </select>
+      </div>
       <div id="topicsContainer" class="space-y-3"></div>
       <p id="emptyHint" class="hidden" style="font-size:0.9rem; color:#9ca3af;">
         You haven’t posted any validation topics yet. Start with one idea and 3–5 questions.
@@ -160,11 +177,11 @@
 
   </main>
 
-  <footer style="text-align:center; padding:1.5rem 0; font-size:0.75rem; color:#9ca3af;">
-    © 2025 xsolia.com
+  <footer style="text-align:center; padding:1.5rem 0; font-size:0.75rem; color:var(--ink-faint);">
+    © 2026 Krotka.ai by xSolia
   </footer>
 
-  <script src="js/app.js"></script>
+  <script src="js/app.js?v=20260424-gsap"></script>
   <script src="js/logo.js"></script>
   <script src="js/nav.js"></script>
   <script>
@@ -181,18 +198,39 @@
     const newTopicBtn = document.getElementById("newTopicBtn");
     const planBadge = document.getElementById("planBadge");
     const planHint = document.getElementById("planHint");
+    const publicProfileBtn = document.getElementById("publicProfileBtn");
     const logoutBtn = document.getElementById("logoutBtn");
+    let currentUsername = session.username || "";
+
+    async function showUsernameSetupModal() {
+      const input = window.prompt("Choose a public username: 3-30 letters, numbers, or underscores.");
+      if (!input) return false;
+      try {
+        const { response, data } = await XsoliaApp.apiFetch("/me/username", {
+          method: "PATCH",
+          auth: true,
+          body: { username: input },
+        });
+        if (!response.ok) {
+          alert(XsoliaApp.formatApiError(data, "Failed to set username."));
+          return false;
+        }
+        currentUsername = data.username || "";
+        if (currentUsername) {
+          localStorage.setItem("username", currentUsername);
+          return true;
+        }
+        return false;
+      } catch (err) {
+        alert(err.message || "Failed to set username.");
+        return false;
+      }
+    }
 
     // redirect if not creator
     // New topic button behavior
     newTopicBtn.addEventListener("click", () => {
-      if (subscription === "free") {
-        alert("Posting topics is only available on Creator Basic or Creator Plus plans.");
-        // 将来这里可以跳到 upgrade 页面
-        // window.location.href = "billing.html";
-      } else {
-        window.location.href = "create.html";
-      }
+      window.location.href = "create.html";
     });
 
     // logout
@@ -200,6 +238,32 @@
       XsoliaApp.clearSession();
       window.location.href = "index.html";
     });
+
+    publicProfileBtn.addEventListener("click", async () => {
+      if (!currentUsername) {
+        const ok = await showUsernameSetupModal();
+        if (!ok) return;
+      }
+      if (currentUsername) {
+        window.location.href = `profile.html?u=${encodeURIComponent(currentUsername)}`;
+      }
+    });
+
+    async function refreshCurrentUser() {
+      try {
+        const { response, data } = await XsoliaApp.apiFetch("/me", { auth: true });
+        if (!response.ok) return;
+        if (data.username) {
+          currentUsername = data.username;
+          localStorage.setItem("username", currentUsername);
+        } else {
+          currentUsername = "";
+          localStorage.removeItem("username");
+        }
+      } catch (_err) {
+        // Non-blocking: profile setup can still happen from the button prompt.
+      }
+    }
 
     // show plan
     let planLabel = "";
@@ -214,24 +278,18 @@
     } else if (subscription === "creator_basic") {
       planHint.textContent = "You can post topics. Upgrade to Plus later for AI summarization.";
     } else {
-      planHint.textContent = "You’re on Plus. You’ll be able to use AI summaries when they’re ready.";
+      planHint.textContent = "You’re on Plus. Open a topic’s response page to generate AI summaries.";
     }
 
     // --- Load creator topics & stats ---
     const topicsContainer = document.getElementById("topicsContainer");
     const emptyHint = document.getElementById("emptyHint");
     const errorEl = document.getElementById("error");
-    const totalTopicsEl = document.getElementById("totalTopics");
+    const activeProjectsEl = document.getElementById("activeProjects");
     const totalResponsesEl = document.getElementById("totalResponses");
     const avgInterestAllEl = document.getElementById("avgInterestAll");
-
-    async function fetchProjectStats(projectId) {
-      const { response, data } = await XsoliaApp.apiFetch(`/projects/${projectId}/stats`, { auth: true });
-      if (!response.ok) {
-        return null;
-      }
-      return data;
-    }
+    const projectsNeedingDecisionEl = document.getElementById("projectsNeedingDecision");
+    const statusFilter = document.getElementById("statusFilter");
 
     async function loadCreatorTopics() {
       topicsContainer.innerHTML = "";
@@ -239,50 +297,37 @@
       errorEl.classList.add("hidden");
 
       try {
-        const { response, data } = await XsoliaApp.apiFetch("/projects/mine?status=active&limit=100&offset=0", {
-          auth: true
+        const { response, data } = await XsoliaApp.apiFetch("/me/creator-dashboard", {
+          auth: true,
         });
         if (!response.ok) {
-          throw new Error(data.detail || "Failed to load topics");
+          throw new Error(XsoliaApp.formatApiError(data, "Failed to load creator dashboard data."));
         }
 
-        const myTopics = data || [];
+        const summary = data && data.summary ? data.summary : {};
+        const allProjects = Array.isArray(data && data.projects) ? data.projects : [];
+        const selectedStatus = statusFilter.value || "active";
+        const projects = allProjects.filter((item) => {
+          if (!selectedStatus) return true;
+          return (item.status || "active") === selectedStatus;
+        });
 
-        if (myTopics.length === 0) {
+        activeProjectsEl.textContent = String(Number(summary.active_projects || 0));
+        totalResponsesEl.textContent = String(Number(summary.total_responses || 0));
+        const avgInterestOverall = Number(summary.avg_interest_overall || 0);
+        avgInterestAllEl.textContent = avgInterestOverall > 0 ? avgInterestOverall.toFixed(1) : "–";
+        projectsNeedingDecisionEl.textContent = String(Number(summary.projects_needing_decision || 0));
+
+        if (projects.length === 0) {
           emptyHint.classList.remove("hidden");
-          totalTopicsEl.textContent = "0";
-          totalResponsesEl.textContent = "0";
-          avgInterestAllEl.textContent = "–";
+          emptyHint.textContent = `No ${selectedStatus} topics in this view.`;
           return;
         }
 
-        totalTopicsEl.textContent = String(myTopics.length);
-
-        // load stats for each topic in parallel
-        const statsList = await Promise.all(
-          myTopics.map(t => fetchProjectStats(t.id))
-        );
-
-        // aggregate stats for overview
-        let totalResponses = 0;
-        let interestSum = 0;
-        let interestCount = 0;
-
-        myTopics.forEach((topic, idx) => {
-          const stats = statsList[idx];
-          const responsesCount = stats?.responses_count || 0;
-          const avgInterest = stats?.avg_interest;
-          const avgPriceMin = stats?.avg_price_min;
-          const avgPriceMax = stats?.avg_price_max;
-
-          totalResponses += responsesCount;
-          if (avgInterest != null && responsesCount > 0) {
-            interestSum += avgInterest;
-            interestCount += 1;
-          }
-
+        projects.forEach((topic, idx) => {
           const card = document.createElement("div");
-          card.className = "x-card";
+          card.className = "x-card motion-reveal";
+          card.style.animationDelay = `${Math.min(idx * 70, 420)}ms`;
 
           const row1 = document.createElement("div");
           row1.className = "flex items-center justify-between mb-1";
@@ -293,21 +338,22 @@
 
           const statusBadge = document.createElement("span");
           statusBadge.className = "x-badge";
-          statusBadge.textContent = "Active";
+          statusBadge.textContent = topic.status || "active";
 
           row1.appendChild(titleEl);
           row1.appendChild(statusBadge);
 
           const descEl = document.createElement("p");
           descEl.className = "text-sm";
-          descEl.textContent = topic.description || "";
+          descEl.textContent = topic.next_step || "Review responses and decide the next move.";
 
           const metaEl = document.createElement("p");
           metaEl.className = "text-xs mb-2";
-          metaEl.textContent = `Target: ${topic.target_audience || "N/A"} · Budget: $${topic.budget || 0}`;
+          const sourceText = topic.source_innovation_id ? ` · Source: Innovation Pool idea #${topic.source_innovation_id}` : "";
+          metaEl.textContent = `Visibility: ${topic.visibility || "public"}${sourceText}`;
 
           const metricsEl = document.createElement("div");
-          metricsEl.className = "grid grid-cols-3 gap-3 text-xs mb-2";
+          metricsEl.className = "grid grid-cols-4 gap-3 text-xs mb-2";
 
           const m1 = document.createElement("div");
           const m1Label = document.createElement("div");
@@ -317,7 +363,7 @@
           m1Label.textContent = "Responses";
           const m1Value = document.createElement("div");
           m1Value.style.fontSize = "0.9rem";
-          m1Value.textContent = String(responsesCount);
+          m1Value.textContent = String(topic.responses_count || 0);
           m1.appendChild(m1Label);
           m1.appendChild(m1Value);
 
@@ -329,14 +375,14 @@
           m2Label.textContent = "Avg interest";
           const m2Value = document.createElement("div");
           m2Value.style.fontSize = "0.9rem";
-          m2Value.textContent = avgInterest != null ? avgInterest.toFixed(1) : "–";
+          m2Value.textContent = topic.avg_interest != null ? Number(topic.avg_interest).toFixed(1) : "–";
           m2.appendChild(m2Label);
           m2.appendChild(m2Value);
 
           const m3 = document.createElement("div");
           let priceText = "–";
-          if (avgPriceMin != null && avgPriceMax != null) {
-            priceText = `$${avgPriceMin.toFixed(0)} – $${avgPriceMax.toFixed(0)}`;
+          if (topic.avg_price_min != null && topic.avg_price_max != null) {
+            priceText = `$${Number(topic.avg_price_min).toFixed(0)} – $${Number(topic.avg_price_max).toFixed(0)}`;
           }
           const m3Label = document.createElement("div");
           m3Label.style.fontSize = "0.7rem";
@@ -349,9 +395,32 @@
           m3.appendChild(m3Label);
           m3.appendChild(m3Value);
 
+          const m4 = document.createElement("div");
+          const m4Label = document.createElement("div");
+          m4Label.style.fontSize = "0.7rem";
+          m4Label.style.color = "#6b7280";
+          m4Label.style.marginBottom = "0.15rem";
+          m4Label.textContent = "Acceptance";
+          const m4Value = document.createElement("div");
+          m4Value.style.fontSize = "0.9rem";
+          m4Value.textContent = `${Math.round(Number(topic.acceptance_rate || 0) * 100)}%`;
+          m4.appendChild(m4Label);
+          m4.appendChild(m4Value);
+
           metricsEl.appendChild(m1);
           metricsEl.appendChild(m2);
           metricsEl.appendChild(m3);
+          metricsEl.appendChild(m4);
+
+          const stageBadge = document.createElement("span");
+          stageBadge.className = "x-badge";
+          stageBadge.textContent = topic.decision_stage || "draft_or_low_signal";
+
+          const signalEl = document.createElement("p");
+          signalEl.style.fontSize = "0.78rem";
+          signalEl.style.color = "#6b7280";
+          signalEl.style.marginBottom = "0.5rem";
+          signalEl.textContent = `Top signal: ${topic.top_signal || "Not enough signal yet."}`;
 
           const actionsRow = document.createElement("div");
           actionsRow.className = "flex items-center justify-between mt-1";
@@ -359,53 +428,77 @@
 
           const qInfo = document.createElement("span");
           qInfo.style.color = "#6b7280";
-          qInfo.textContent = `Questions: ${topic.questions ? topic.questions.length : 0}`;
+          qInfo.textContent = `Stage: ${topic.decision_stage || "draft_or_low_signal"}`;
 
           const btnRow = document.createElement("div");
           btnRow.className = "flex items-center gap-2";
 
-          const viewAsTester = document.createElement("a");
-          viewAsTester.href = `answer.html?project_id=${topic.id}`;
-          viewAsTester.className = "x-btn-secondary";
-          viewAsTester.style.fontSize = "0.8rem";
-          viewAsTester.style.paddingInline = "0.8rem";
-          viewAsTester.style.paddingBlock = "0.25rem";
-          viewAsTester.textContent = "View as tester";
+          const viewResponsesBtn = document.createElement("a");
+          viewResponsesBtn.href = `project-responses.html?project_id=${topic.id}`;
+          viewResponsesBtn.className = "x-btn-secondary";
+          viewResponsesBtn.style.fontSize = "0.8rem";
+          viewResponsesBtn.style.paddingInline = "0.8rem";
+          viewResponsesBtn.style.paddingBlock = "0.25rem";
+          viewResponsesBtn.textContent = "View responses";
 
-          const viewStatsBtn = document.createElement("button");
-          viewStatsBtn.type = "button";
-          viewStatsBtn.className = "x-btn-primary";
-          viewStatsBtn.style.fontSize = "0.8rem";
-          viewStatsBtn.style.paddingInline = "0.8rem";
-          viewStatsBtn.style.paddingBlock = "0.25rem";
-          viewStatsBtn.textContent = "Raw stats (JSON)";
-          viewStatsBtn.addEventListener("click", async () => {
-            const s = await fetchProjectStats(topic.id);
-            alert(JSON.stringify(s, null, 2));
-          });
+          const viewReportBtn = document.createElement("a");
+          viewReportBtn.href = `project-responses.html?project_id=${topic.id}#share`;
+          viewReportBtn.className = "x-btn-primary";
+          viewReportBtn.style.fontSize = "0.8rem";
+          viewReportBtn.style.paddingInline = "0.8rem";
+          viewReportBtn.style.paddingBlock = "0.25rem";
+          viewReportBtn.textContent = "View report";
 
-          btnRow.appendChild(viewAsTester);
-          btnRow.appendChild(viewStatsBtn);
+          btnRow.appendChild(viewResponsesBtn);
+          btnRow.appendChild(viewReportBtn);
+
+          if ((topic.status || "active") === "active") {
+            const closeBtn = document.createElement("button");
+            closeBtn.type = "button";
+            closeBtn.className = "x-btn-secondary";
+            closeBtn.style.fontSize = "0.8rem";
+            closeBtn.style.paddingInline = "0.8rem";
+            closeBtn.style.paddingBlock = "0.25rem";
+            closeBtn.textContent = "Close";
+            closeBtn.addEventListener("click", () => updateProjectStatus(topic.id, "closed"));
+
+            const archiveBtn = document.createElement("button");
+            archiveBtn.type = "button";
+            archiveBtn.className = "x-btn-secondary";
+            archiveBtn.style.fontSize = "0.8rem";
+            archiveBtn.style.paddingInline = "0.8rem";
+            archiveBtn.style.paddingBlock = "0.25rem";
+            archiveBtn.textContent = "Archive";
+            archiveBtn.addEventListener("click", () => updateProjectStatus(topic.id, "archived"));
+
+            btnRow.appendChild(closeBtn);
+            btnRow.appendChild(archiveBtn);
+          } else {
+            const reopenBtn = document.createElement("button");
+            reopenBtn.type = "button";
+            reopenBtn.className = "x-btn-secondary";
+            reopenBtn.style.fontSize = "0.8rem";
+            reopenBtn.style.paddingInline = "0.8rem";
+            reopenBtn.style.paddingBlock = "0.25rem";
+            reopenBtn.textContent = "Reopen";
+            reopenBtn.addEventListener("click", () => updateProjectStatus(topic.id, "active"));
+            btnRow.appendChild(reopenBtn);
+          }
 
           actionsRow.appendChild(qInfo);
           actionsRow.appendChild(btnRow);
 
           card.appendChild(row1);
+          card.appendChild(stageBadge);
           card.appendChild(descEl);
           card.appendChild(metaEl);
+          card.appendChild(signalEl);
           card.appendChild(metricsEl);
           card.appendChild(actionsRow);
 
           topicsContainer.appendChild(card);
         });
-
-        totalResponsesEl.textContent = String(totalResponses);
-        if (interestCount > 0) {
-          const avgAll = interestSum / interestCount;
-          avgInterestAllEl.textContent = avgAll.toFixed(1);
-        } else {
-          avgInterestAllEl.textContent = "–";
-        }
+        XsoliaApp.initMotion();
 
       } catch (err) {
         console.error(err);
@@ -414,6 +507,29 @@
       }
     }
 
+    async function updateProjectStatus(projectId, status) {
+      try {
+        const body = { status };
+        if (status === "closed") {
+          body.launched = window.confirm("Did this project launch? If yes, testers who responded will receive a prediction notification.");
+        }
+        const { response, data } = await XsoliaApp.apiFetch(`/projects/${projectId}/status`, {
+          method: "PATCH",
+          auth: true,
+          body,
+        });
+        if (!response.ok) {
+          alert(XsoliaApp.formatApiError(data, "Failed to update project status."));
+          return;
+        }
+        loadCreatorTopics();
+      } catch (err) {
+        alert(err.message || "Failed to update project status.");
+      }
+    }
+
+    statusFilter.addEventListener("change", loadCreatorTopics);
+    refreshCurrentUser();
     loadCreatorTopics();
   </script>
 </body>

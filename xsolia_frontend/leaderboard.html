@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Tester leaderboard · Krotka.ai by xSolia</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/theme.css?v=20260426-leaderboard" />
+</head>
+<body class="min-h-screen flex flex-col">
+  <div id="navbar"></div>
+
+  <main class="flex-1 container workspace-shell" style="padding-top:1.6rem; padding-bottom:2.4rem;">
+    <section class="section workspace-hero motion-reveal" style="max-width:980px; margin-left:auto; margin-right:auto;">
+      <div>
+        <p class="eyebrow">Community signal</p>
+        <h1 style="margin:0;">Tester leaderboard</h1>
+        <p style="font-size:0.92rem; color:var(--ink-muted); margin-top:0.55rem; max-width:60ch;">
+          Ranked by reliability score first, then accepted responses, points, and streak.
+        </p>
+      </div>
+      <a href="explore.html" class="x-btn-secondary" style="font-size:0.82rem;">Browse topics</a>
+    </section>
+
+    <section class="section x-card motion-reveal" style="max-width:980px; margin:1rem auto 0;">
+      <div class="flex items-center justify-between" style="margin-bottom:0.65rem;">
+        <h2 style="font-size:1.05rem; font-weight:800; margin:0;">Top testers</h2>
+        <span id="updatedAt" style="font-size:0.78rem; color:var(--ink-muted);"></span>
+      </div>
+      <div id="rows" class="flex flex-col gap-2"></div>
+      <p id="empty" class="hidden" style="font-size:0.9rem; color:var(--ink-muted);">No ranked testers yet.</p>
+      <p id="error" class="hidden" style="font-size:0.9rem; color:#f97373;"></p>
+    </section>
+  </main>
+
+  <footer style="text-align:center; padding:1.5rem 0; font-size:0.75rem; color:var(--ink-faint);">© 2026 Krotka.ai by xSolia</footer>
+
+  <script src="js/app.js?v=20260424-gsap"></script>
+  <script src="js/logo.js"></script>
+  <script src="js/nav.js"></script>
+  <script>
+    const rowsEl = document.getElementById('rows');
+    const emptyEl = document.getElementById('empty');
+    const errorEl = document.getElementById('error');
+    const updatedAtEl = document.getElementById('updatedAt');
+    const session = XsoliaApp.getSession();
+
+    function renderRow(item) {
+      const row = document.createElement('article');
+      row.className = 'x-card';
+      row.style.padding = '0.75rem 0.9rem';
+      const isCurrentUser = session && String(session.userId || '') === String(item.user_id);
+      if (isCurrentUser) {
+        row.style.border = '1px solid rgba(189,66,40,0.48)';
+        row.style.background = 'rgba(249, 240, 228, 0.9)';
+      }
+
+      const line = document.createElement('div');
+      line.className = 'flex flex-wrap items-center justify-between gap-2';
+
+      const left = document.createElement('div');
+      const title = document.createElement('a');
+      title.href = `profile.html?u=${encodeURIComponent(item.username)}`;
+      title.style.fontWeight = '800';
+      title.style.color = 'var(--ink-strong)';
+      title.textContent = isCurrentUser ? `#${item.rank} @${item.username}  ← You` : `#${item.rank} @${item.username}`;
+
+      const sub = document.createElement('p');
+      sub.style.fontSize = '0.8rem';
+      sub.style.color = 'var(--ink-muted)';
+      sub.style.margin = '0.2rem 0 0';
+      const acceptanceRate = `${Math.round(Number(item.acceptance_rate || 0) * 100)}%`;
+      const categories = Array.isArray(item.best_categories) && item.best_categories.length
+        ? item.best_categories.join(', ')
+        : '—';
+      sub.textContent = `${item.name} · Reliability ${item.reliability_score || 0} · Accepted ${item.accepted_responses_count || 0} · Acceptance ${acceptanceRate} · Best categories: ${categories}`;
+      left.appendChild(title);
+      left.appendChild(sub);
+
+      const points = document.createElement('div');
+      points.style.display = 'flex';
+      points.style.gap = '0.35rem';
+      points.style.flexWrap = 'wrap';
+      points.innerHTML = `
+        <span class="x-badge font-data">Score ${item.reliability_score || 0}</span>
+        <span class="x-badge font-data">${item.points || 0} pts</span>
+      `;
+
+      line.appendChild(left);
+      line.appendChild(points);
+      row.appendChild(line);
+      return row;
+    }
+
+    async function loadLeaderboard() {
+      rowsEl.innerHTML = '';
+      errorEl.classList.add('hidden');
+      emptyEl.classList.add('hidden');
+      try {
+        const { response, data } = await XsoliaApp.apiFetch('/leaderboard/testers?limit=20');
+        if (!response.ok) {
+          throw new Error(XsoliaApp.formatApiError(data, 'Failed to load leaderboard.'));
+        }
+        const items = Array.isArray(data) ? data : [];
+        if (!items.length) {
+          emptyEl.classList.remove('hidden');
+          return;
+        }
+        items.forEach((item) => rowsEl.appendChild(renderRow(item)));
+        updatedAtEl.textContent = `Updated ${new Date().toLocaleString()}`;
+        XsoliaApp.initMotion();
+      } catch (err) {
+        errorEl.textContent = err.message || 'Failed to load leaderboard.';
+        errorEl.classList.remove('hidden');
+      }
+    }
+
+    loadLeaderboard();
+  </script>
+</body>
+</html>

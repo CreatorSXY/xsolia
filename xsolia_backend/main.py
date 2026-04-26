@@ -3,21 +3,27 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import inspect
 import json
 import os
+import re
 import secrets
 import time
+import warnings
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from math import sqrt
 from threading import Lock
 from typing import Any, Optional
 
+import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from jose import JWTError, jwt
 from pydantic import field_validator, model_validator
-from sqlalchemy import UniqueConstraint, func
+from sqlalchemy import UniqueConstraint, case, func, text
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Field, SQLModel, Session, create_engine, select
 
@@ -27,16 +33,21 @@ DATABASE_URL = (
     or os.getenv("KROTKA_DATABASE_URL")
     or "sqlite:///./database.db"
 )
+connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 engine = create_engine(
     DATABASE_URL,
     echo=False,
-    connect_args={"check_same_thread": False},
+    connect_args=connect_args,
 )
 
 # ========= Security constants =========
 ROLES = {"creator", "tester"}
 SUBSCRIPTIONS = {"free", "creator_basic", "creator_plus"}
 INNOVATION_INTENTS = {"open", "looking_for_team", "just_idea"}
+PROJECT_STATUS_UPDATES = {"active", "closed", "archived"}
+INNOVATION_STATUS_UPDATES = {"active", "archived"}
+PROJECT_VISIBILITIES = {"public", "tester_only", "invite_only", "private_link"}
+PROJECT_DETAIL_LEVELS = {"problem_only", "concept_summary", "full_description"}
 
 PBKDF2_ITERATIONS = int(
     os.getenv("XSOLIA_PBKDF2_ITERATIONS")
@@ -53,6 +64,12 @@ SECRET_KEY = (
     or os.getenv("KROTKA_SECRET_KEY")
     or "dev-secret-change-me"
 )
+APP_ENV = (
+    os.getenv("XSOLIA_ENV")
+    or os.getenv("KROTKA_ENV")
+    or os.getenv("ENV")
+    or "development"
+).lower()
 
 FREE_CREATOR_PROJECT_QUOTA = int(
     os.getenv("XSOLIA_FREE_CREATOR_PROJECT_QUOTA")
@@ -75,6 +92,44 @@ AUTH_RATE_LIMIT_SWEEP_INTERVAL_SECONDS = int(
     or os.getenv("KROTKA_AUTH_RATE_LIMIT_SWEEP_INTERVAL_SECONDS")
     or "120"
 )
+AI_PROVIDER = (
+    os.getenv("XSOLIA_AI_PROVIDER")
+    or os.getenv("KROTKA_AI_PROVIDER")
+    or "disabled"
+).strip().lower()
+DEFAULT_AI_MODEL = "gemini-2.0-flash" if AI_PROVIDER == "gemini" else "gpt-4o"
+AI_MODEL = (
+    os.getenv("XSOLIA_AI_MODEL")
+    or os.getenv("KROTKA_AI_MODEL")
+    or DEFAULT_AI_MODEL
+)
+AI_API_KEY = (
+    os.getenv("XSOLIA_AI_API_KEY")
+    or os.getenv("KROTKA_AI_API_KEY")
+    or os.getenv("OPENAI_API_KEY")
+)
+GEMINI_API_KEY = (
+    os.getenv("XSOLIA_GEMINI_API_KEY")
+    or os.getenv("KROTKA_GEMINI_API_KEY")
+    or os.getenv("GEMINI_API_KEY")
+    or AI_API_KEY
+)
+AI_REQUEST_TIMEOUT_SECONDS = int(
+    os.getenv("XSOLIA_AI_REQUEST_TIMEOUT_SECONDS")
+    or os.getenv("KROTKA_AI_REQUEST_TIMEOUT_SECONDS")
+    or "45"
+)
+ALLOWED_ORIGINS_RAW = (
+    os.getenv("XSOLIA_ALLOWED_ORIGINS")
+    or os.getenv("KROTKA_ALLOWED_ORIGINS")
+    or "*"
+)
+if ALLOWED_ORIGINS_RAW.strip() == "*":
+    ALLOWED_ORIGINS = ["*"]
+else:
+    ALLOWED_ORIGINS = [origin.strip() for origin in ALLOWED_ORIGINS_RAW.split(",") if origin.strip()]
+    if not ALLOWED_ORIGINS:
+        ALLOWED_ORIGINS = ["*"]
 
 _AUTH_ATTEMPTS: dict[str, list[float]] = {}
 _AUTH_ATTEMPTS_LOCK = Lock()
@@ -96,6 +151,11 @@ class User(SQLModel, table=True):
     role: str = "tester"
     subscription: str = "free"
     points: int = 0
+    username: Optional[str] = Field(default=None, unique=True, index=True)
+    avatar_url: Optional[str] = None
+    streak_current: int = Field(default=0)
+    streak_best: int = Field(default=0)
+    last_response_date: Optional[str] = None
 
 
 class UserCreate(SQLModel):
@@ -163,6 +223,15 @@ class UserLogin(SQLModel):
         return value.strip().lower()
 
 
+class TesterReputationOut(SQLModel):
+    responses_count: int = 0
+    accepted_responses_count: int = 0
+    acceptance_rate: float = 0.0
+    avg_interest_given: float = 0.0
+    best_categories: list[str] = Field(default_factory=list)
+    reliability_score: int = 0
+
+
 class UserOut(SQLModel):
     id: int
     email: str
@@ -170,6 +239,16 @@ class UserOut(SQLModel):
     role: str
     subscription: str
     points: int
+    username: Optional[str] = None
+    avatar_url: Optional[str] = None
+    streak_current: int = 0
+    streak_best: int = 0
+    responses_count: int = 0
+    accepted_responses_count: int = 0
+    acceptance_rate: float = 0.0
+    avg_interest_given: float = 0.0
+    best_categories: list[str] = Field(default_factory=list)
+    reliability_score: int = 0
 
 
 class LoginOut(SQLModel):
@@ -177,9 +256,69 @@ class LoginOut(SQLModel):
     role: str
     name: str
     subscription: str
+    username: Optional[str] = None
+    avatar_url: Optional[str] = None
     access_token: str
     token_type: str
     expires_in: int
+
+
+class UsernameUpdate(SQLModel):
+    username: str
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, value: str) -> str:
+        cleaned = value.strip().lower()
+        if not re.fullmatch(r"[a-z0-9_]{3,30}", cleaned):
+            raise ValueError("Username must be 3-30 characters using letters, numbers, or underscores")
+        return cleaned
+
+
+class AvatarUpdate(SQLModel):
+    avatar_url: Optional[str] = None
+
+    @field_validator("avatar_url")
+    @classmethod
+    def validate_avatar_url(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        if not cleaned:
+            return None
+        if len(cleaned) > 2_500_000:
+            raise ValueError("Avatar image is too large")
+        if cleaned.startswith("data:image/") and ";base64," in cleaned:
+            return cleaned
+        if cleaned.startswith("https://") or cleaned.startswith("http://"):
+            return cleaned
+        raise ValueError("Avatar must be a valid image URL or data URL")
+
+
+class PublicTopProject(SQLModel):
+    title: str
+    responses_count: int
+    avg_interest: Optional[float]
+
+
+class UserPublicOut(SQLModel):
+    username: str
+    name: str
+    role: str
+    projects_count: int
+    total_responses: int
+    avg_interest: Optional[float]
+    top_project: Optional[PublicTopProject]
+    top_category: Optional[str] = None
+    points: int = 0
+    streak_current: int = 0
+    streak_best: int = 0
+    responses_count: int = 0
+    accepted_responses_count: int = 0
+    acceptance_rate: float = 0.0
+    avg_interest_given: float = 0.0
+    best_categories: list[str] = Field(default_factory=list)
+    reliability_score: int = 0
 
 
 class Project(SQLModel, table=True):
@@ -189,11 +328,16 @@ class Project(SQLModel, table=True):
     description: str
     target_audience: str
     questions: str
+    image_urls: str = "[]"
     reward_note: Optional[str] = None
     budget: int
     main_category: str = "testing"
     subcategory: Optional[str] = None
     status: str = "active"
+    visibility: str = "public"
+    detail_level: str = "concept_summary"
+    allow_indexing: bool = False
+    source_innovation_id: Optional[int] = Field(default=None, index=True)
 
 
 class ProjectQuestion(SQLModel, table=True):
@@ -205,15 +349,29 @@ class ProjectQuestion(SQLModel, table=True):
     text: str
 
 
+class ProjectAISummary(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    project_id: int = Field(foreign_key="project.id", index=True)
+    model: str
+    input_hash: str = Field(index=True)
+    summary_json: str
+    created_at: datetime = Field(default_factory=utc_now)
+
+
 class ProjectCreate(SQLModel):
     title: str
     description: str
     target_audience: str
     questions: list[str] = Field(min_length=1, max_length=8)
+    image_urls: list[str] = Field(default_factory=list, max_length=3)
     reward_note: Optional[str] = None
     budget: int = Field(ge=0, le=1_000_000_000)
     main_category: str = "testing"
     subcategory: Optional[str] = None
+    visibility: str = "public"
+    detail_level: str = "concept_summary"
+    allow_indexing: bool = False
+    source_innovation_id: Optional[int] = Field(default=None, ge=1)
 
     @field_validator("title")
     @classmethod
@@ -256,6 +414,20 @@ class ProjectCreate(SQLModel):
                 raise ValueError("Question is too long")
         return cleaned
 
+    @field_validator("image_urls")
+    @classmethod
+    def validate_image_urls(cls, value: list[str]) -> list[str]:
+        cleaned = [image.strip() for image in value if image and image.strip()]
+        if len(cleaned) > 3:
+            raise ValueError("At most 3 images are allowed")
+        for image in cleaned:
+            if len(image) > 2_048:
+                raise ValueError("Image URL is too long")
+            if image.startswith("https://") or image.startswith("http://"):
+                continue
+            raise ValueError("Each image must be a valid image URL")
+        return cleaned
+
     @field_validator("reward_note")
     @classmethod
     def validate_reward_note(cls, value: Optional[str]) -> Optional[str]:
@@ -284,6 +456,35 @@ class ProjectCreate(SQLModel):
             raise ValueError("Subcategory is too long")
         return cleaned or None
 
+    @field_validator("visibility")
+    @classmethod
+    def validate_visibility(cls, value: str) -> str:
+        cleaned = value.strip().lower()
+        if cleaned not in PROJECT_VISIBILITIES:
+            raise ValueError("Invalid visibility")
+        return cleaned
+
+    @field_validator("detail_level")
+    @classmethod
+    def validate_detail_level(cls, value: str) -> str:
+        cleaned = value.strip().lower()
+        if cleaned not in PROJECT_DETAIL_LEVELS:
+            raise ValueError("Invalid detail level")
+        return cleaned
+
+
+class ProjectStatusUpdate(SQLModel):
+    status: str
+    launched: bool = False
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: str) -> str:
+        cleaned = value.strip().lower()
+        if cleaned not in PROJECT_STATUS_UPDATES:
+            raise ValueError("Invalid project status")
+        return cleaned
+
 
 class ProjectOut(SQLModel):
     id: int
@@ -292,11 +493,26 @@ class ProjectOut(SQLModel):
     description: str
     target_audience: str
     questions: list[str]
+    image_urls: list[str]
     reward_note: Optional[str]
     budget: int
     main_category: str
     subcategory: Optional[str]
     status: str
+    visibility: str = "public"
+    detail_level: str = "concept_summary"
+    allow_indexing: bool = False
+    source_innovation_id: Optional[int] = None
+
+
+class ProjectAISummaryOut(SQLModel):
+    project_id: int
+    responses_count: int
+    model: str
+    input_hash: str
+    cached: bool
+    generated_at: datetime
+    summary: dict[str, Any]
 
 
 class Response(SQLModel, table=True):
@@ -325,6 +541,23 @@ class ResponseAnswer(SQLModel, table=True):
     text: str
 
 
+class ResponseLike(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("response_id", "user_id", name="uq_response_like_user"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    response_id: int = Field(foreign_key="response.id", index=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    created_at: datetime = Field(default_factory=utc_now)
+
+
+class ResponseComment(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    response_id: int = Field(foreign_key="response.id", index=True)
+    author_id: int = Field(foreign_key="user.id", index=True)
+    text: str
+    created_at: datetime = Field(default_factory=utc_now)
+
+
 class ResponseCreate(SQLModel):
     interest_level: int = Field(ge=1, le=5)
     answers: list[str] = Field(min_length=1, max_length=12)
@@ -349,9 +582,24 @@ class ResponseCreate(SQLModel):
         return self
 
 
+class ResponseCommentCreate(SQLModel):
+    text: str
+
+    @field_validator("text")
+    @classmethod
+    def validate_text(cls, value: str) -> str:
+        cleaned = value.strip()
+        if len(cleaned) < 1:
+            raise ValueError("Comment text is required")
+        if len(cleaned) > 2000:
+            raise ValueError("Comment text is too long")
+        return cleaned
+
+
 class ResponseOut(SQLModel):
     id: int
     project_id: int
+    project_title: Optional[str] = None
     user_id: int
     interest_level: int
     answers: list[str]
@@ -359,6 +607,82 @@ class ResponseOut(SQLModel):
     price_max: Optional[int] = None
     accepted_by_creator: bool
     likes_count: int
+    created_at: datetime
+    responder_name: Optional[str] = None
+    responder_reputation: Optional[TesterReputationOut] = None
+
+
+class ResponseCommentOut(SQLModel):
+    id: int
+    response_id: int
+    author_id: int
+    author_name: Optional[str] = None
+    text: str
+    created_at: datetime
+
+
+class DailyPicksOut(SQLModel):
+    completed_today: bool
+    picks: list[ProjectOut]
+
+
+class TesterLeaderboardEntryOut(SQLModel):
+    rank: int
+    user_id: int
+    username: str
+    name: str
+    points: int
+    streak_best: int
+    responses_count: int
+    accepted_responses_count: int
+    acceptance_rate: float
+    reliability_score: int
+    best_categories: list[str] = Field(default_factory=list)
+
+
+class CreatorDashboardSummaryOut(SQLModel):
+    total_projects: int = 0
+    active_projects: int = 0
+    total_responses: int = 0
+    avg_interest_overall: float = 0.0
+    projects_needing_decision: int = 0
+
+
+class CreatorDashboardProjectOut(SQLModel):
+    id: int
+    title: str
+    status: str
+    visibility: str
+    responses_count: int
+    avg_interest: Optional[float]
+    acceptance_rate: float
+    avg_price_min: Optional[float]
+    avg_price_max: Optional[float]
+    decision_stage: str
+    top_signal: str
+    next_step: str
+    source_innovation_id: Optional[int] = None
+
+
+class CreatorDashboardOut(SQLModel):
+    summary: CreatorDashboardSummaryOut
+    projects: list[CreatorDashboardProjectOut]
+
+
+class Notification(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    type: str
+    payload_json: str
+    read: bool = Field(default=False)
+    created_at: datetime = Field(default_factory=utc_now)
+
+
+class NotificationOut(SQLModel):
+    id: int
+    type: str
+    payload: dict[str, Any]
+    read: bool
     created_at: datetime
 
 
@@ -384,6 +708,32 @@ class Innovation(SQLModel, table=True):
     status: str = "active"
     created_at: datetime = Field(default_factory=utc_now)
     upvotes: int = 0
+
+
+class InnovationVote(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("innovation_id", "user_id", name="uq_innovation_vote_user"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    innovation_id: int = Field(foreign_key="innovation.id", index=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    created_at: datetime = Field(default_factory=utc_now)
+
+
+class InnovationSave(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("innovation_id", "user_id", name="uq_innovation_save_user"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    innovation_id: int = Field(foreign_key="innovation.id", index=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    created_at: datetime = Field(default_factory=utc_now)
+
+
+class InnovationComment(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    innovation_id: int = Field(foreign_key="innovation.id", index=True)
+    author_id: int = Field(foreign_key="user.id", index=True)
+    text: str
+    created_at: datetime = Field(default_factory=utc_now)
 
 
 class InnovationCreate(SQLModel):
@@ -449,11 +799,138 @@ class InnovationOut(SQLModel):
     upvotes: int
 
 
+class InnovationStatusUpdate(SQLModel):
+    status: str
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: str) -> str:
+        cleaned = value.strip().lower()
+        if cleaned not in INNOVATION_STATUS_UPDATES:
+            raise ValueError("Invalid innovation status")
+        return cleaned
+
+
+class InnovationCommentCreate(SQLModel):
+    text: str
+
+    @field_validator("text")
+    @classmethod
+    def validate_text(cls, value: str) -> str:
+        cleaned = value.strip()
+        if len(cleaned) < 1:
+            raise ValueError("Comment text is required")
+        if len(cleaned) > 2000:
+            raise ValueError("Comment text is too long")
+        return cleaned
+
+
+class InnovationCommentOut(SQLModel):
+    id: int
+    innovation_id: int
+    author_id: int
+    author_name: Optional[str] = None
+    text: str
+    created_at: datetime
+
+
+class InnovationValidationDraftOut(SQLModel):
+    title: str
+    description: str
+    main_category: Optional[str] = None
+    subcategory: Optional[str] = None
+    target_audience: str = ""
+    questions: list[str]
+    source_innovation_id: int
+
+
 # ====================== Utilities ======================
 
 
 def create_db_and_tables() -> None:
     SQLModel.metadata.create_all(engine)
+    ensure_user_profile_columns()
+    ensure_project_columns()
+
+
+def ensure_user_profile_columns() -> None:
+    dialect = engine.dialect.name
+    with engine.begin() as connection:
+        if dialect == "sqlite":
+            existing_columns = {
+                row[1]
+                for row in connection.execute(text('PRAGMA table_info("user")')).fetchall()
+            }
+            column_sql = {
+                "username": 'ALTER TABLE "user" ADD COLUMN username VARCHAR',
+                "avatar_url": 'ALTER TABLE "user" ADD COLUMN avatar_url VARCHAR',
+                "streak_current": 'ALTER TABLE "user" ADD COLUMN streak_current INTEGER NOT NULL DEFAULT 0',
+                "streak_best": 'ALTER TABLE "user" ADD COLUMN streak_best INTEGER NOT NULL DEFAULT 0',
+                "last_response_date": 'ALTER TABLE "user" ADD COLUMN last_response_date VARCHAR',
+            }
+            for column_name, statement in column_sql.items():
+                if column_name not in existing_columns:
+                    connection.execute(text(statement))
+            connection.execute(
+                text('CREATE UNIQUE INDEX IF NOT EXISTS ix_user_username ON "user" (username) WHERE username IS NOT NULL')
+            )
+            return
+
+        if dialect == "postgresql":
+            connection.execute(text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS username VARCHAR'))
+            connection.execute(text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS avatar_url VARCHAR'))
+            connection.execute(text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS streak_current INTEGER NOT NULL DEFAULT 0'))
+            connection.execute(text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS streak_best INTEGER NOT NULL DEFAULT 0'))
+            connection.execute(text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS last_response_date VARCHAR'))
+            connection.execute(text('CREATE UNIQUE INDEX IF NOT EXISTS ix_user_username ON "user" (username) WHERE username IS NOT NULL'))
+
+
+def ensure_project_columns() -> None:
+    dialect = engine.dialect.name
+    with engine.begin() as connection:
+        if dialect == "sqlite":
+            existing_columns = {
+                row[1]
+                for row in connection.execute(text('PRAGMA table_info("project")')).fetchall()
+            }
+            if "image_urls" not in existing_columns:
+                connection.execute(
+                    text('ALTER TABLE "project" ADD COLUMN image_urls VARCHAR NOT NULL DEFAULT \'[]\'')
+                )
+            if "visibility" not in existing_columns:
+                connection.execute(
+                    text('ALTER TABLE "project" ADD COLUMN visibility VARCHAR NOT NULL DEFAULT \'public\'')
+                )
+            if "detail_level" not in existing_columns:
+                connection.execute(
+                    text('ALTER TABLE "project" ADD COLUMN detail_level VARCHAR NOT NULL DEFAULT \'concept_summary\'')
+                )
+            if "allow_indexing" not in existing_columns:
+                connection.execute(
+                    text('ALTER TABLE "project" ADD COLUMN allow_indexing BOOLEAN NOT NULL DEFAULT 0')
+                )
+            if "source_innovation_id" not in existing_columns:
+                connection.execute(
+                    text('ALTER TABLE "project" ADD COLUMN source_innovation_id INTEGER')
+                )
+            connection.execute(text('UPDATE "project" SET image_urls = \'[]\' WHERE image_urls IS NULL OR trim(image_urls) = \'\''))
+            connection.execute(text('UPDATE "project" SET visibility = \'public\' WHERE visibility IS NULL OR trim(visibility) = \'\''))
+            connection.execute(text('UPDATE "project" SET detail_level = \'concept_summary\' WHERE detail_level IS NULL OR trim(detail_level) = \'\''))
+            connection.execute(text("UPDATE \"project\" SET allow_indexing = 0 WHERE allow_indexing IS NULL"))
+            connection.execute(text('CREATE INDEX IF NOT EXISTS ix_project_source_innovation_id ON "project" (source_innovation_id)'))
+            return
+
+        if dialect == "postgresql":
+            connection.execute(text('ALTER TABLE "project" ADD COLUMN IF NOT EXISTS image_urls VARCHAR'))
+            connection.execute(text('ALTER TABLE "project" ADD COLUMN IF NOT EXISTS visibility VARCHAR'))
+            connection.execute(text('ALTER TABLE "project" ADD COLUMN IF NOT EXISTS detail_level VARCHAR'))
+            connection.execute(text('ALTER TABLE "project" ADD COLUMN IF NOT EXISTS allow_indexing BOOLEAN NOT NULL DEFAULT FALSE'))
+            connection.execute(text('ALTER TABLE "project" ADD COLUMN IF NOT EXISTS source_innovation_id INTEGER'))
+            connection.execute(text("UPDATE \"project\" SET image_urls = '[]' WHERE image_urls IS NULL OR btrim(image_urls) = ''"))
+            connection.execute(text("UPDATE \"project\" SET visibility = 'public' WHERE visibility IS NULL OR btrim(visibility) = ''"))
+            connection.execute(text("UPDATE \"project\" SET detail_level = 'concept_summary' WHERE detail_level IS NULL OR btrim(detail_level) = ''"))
+            connection.execute(text("UPDATE \"project\" SET allow_indexing = FALSE WHERE allow_indexing IS NULL"))
+            connection.execute(text('CREATE INDEX IF NOT EXISTS ix_project_source_innovation_id ON "project" (source_innovation_id)'))
 
 
 def get_session():
@@ -502,6 +979,153 @@ def decode_innovation_tags(raw: Optional[str]) -> list[str]:
 
     # Backward compatibility for legacy comma-separated storage.
     return [segment.strip() for segment in raw.split(",") if segment and segment.strip()]
+
+
+def _description_by_detail_level(project: Project, viewer: Optional[User]) -> str:
+    if viewer and viewer.id == project.creator_id:
+        return project.description
+
+    detail_level = (project.detail_level or "concept_summary").strip().lower()
+    source = project.description or ""
+    if detail_level == "full_description":
+        return source
+    if detail_level == "problem_only":
+        sentence = re.split(r"(?<=[.!?])\s+", source.strip(), maxsplit=1)[0]
+        cleaned = sentence.strip()
+        if cleaned:
+            return cleaned
+        return "Problem context shared. Additional details are intentionally hidden."
+    if len(source) <= 280:
+        return source
+    return f"{source[:277].rstrip()}..."
+
+
+def can_view_project(project: Project, current_user: Optional[User]) -> bool:
+    if current_user and current_user.id == project.creator_id:
+        return True
+
+    visibility = (project.visibility or "public").strip().lower()
+    if visibility == "public":
+        return True
+    if visibility == "tester_only":
+        return current_user is not None and current_user.role in {"tester", "creator"}
+    if visibility == "invite_only":
+        return False
+    if visibility == "private_link":
+        return True
+    return True
+
+
+def can_answer_project(project: Project, current_user: User) -> bool:
+    if current_user.role != "tester":
+        return False
+    if current_user.id == project.creator_id:
+        return False
+    return can_view_project(project, current_user)
+
+
+def _compute_reliability_score(
+    responses_count: int,
+    accepted_responses_count: int,
+    streak_best: int,
+) -> int:
+    score = 0
+    score += min(responses_count * 2, 40)
+    score += min(accepted_responses_count * 5, 40)
+    score += min(streak_best * 2, 20)
+    return max(0, min(100, int(score)))
+
+
+def build_tester_reputation_map(
+    session: Session,
+    user_ids: list[int],
+) -> dict[int, TesterReputationOut]:
+    cleaned_ids = sorted({int(user_id) for user_id in user_ids if user_id is not None})
+    if not cleaned_ids:
+        return {}
+
+    user_rows = session.exec(
+        select(User.id, User.streak_best).where(User.id.in_(cleaned_ids))
+    ).all()
+    streak_map = {int(row[0]): int(row[1] or 0) for row in user_rows}
+
+    stat_rows = session.exec(
+        select(
+            Response.user_id,
+            func.count(Response.id),
+            func.sum(case((Response.accepted_by_creator.is_(True), 1), else_=0)),
+            func.avg(Response.interest_level),
+        )
+        .where(Response.user_id.in_(cleaned_ids))
+        .group_by(Response.user_id)
+    ).all()
+    stats_map: dict[int, tuple[int, int, float]] = {}
+    for row in stat_rows:
+        stats_map[int(row[0])] = (
+            int(row[1] or 0),
+            int(row[2] or 0),
+            float(row[3] or 0.0),
+        )
+
+    category_rows = session.exec(
+        select(Project.main_category, Response.user_id, func.count(Response.id))
+        .select_from(Response)
+        .join(Project, Project.id == Response.project_id)
+        .where(Response.user_id.in_(cleaned_ids))
+        .group_by(Response.user_id, Project.main_category)
+        .order_by(Response.user_id.asc(), func.count(Response.id).desc(), Project.main_category.asc())
+    ).all()
+    best_categories_map: dict[int, list[str]] = {}
+    for category, user_id, _count in category_rows:
+        uid = int(user_id)
+        categories = best_categories_map.setdefault(uid, [])
+        if category and category not in categories and len(categories) < 3:
+            categories.append(category)
+
+    reputation_map: dict[int, TesterReputationOut] = {}
+    for user_id in cleaned_ids:
+        responses_count, accepted_count, avg_interest = stats_map.get(user_id, (0, 0, 0.0))
+        acceptance_rate = (accepted_count / responses_count) if responses_count else 0.0
+        streak_best = streak_map.get(user_id, 0)
+        reputation_map[user_id] = TesterReputationOut(
+            responses_count=responses_count,
+            accepted_responses_count=accepted_count,
+            acceptance_rate=acceptance_rate,
+            avg_interest_given=avg_interest if responses_count else 0.0,
+            best_categories=best_categories_map.get(user_id, []),
+            reliability_score=_compute_reliability_score(
+                responses_count=responses_count,
+                accepted_responses_count=accepted_count,
+                streak_best=streak_best,
+            ),
+        )
+
+    return reputation_map
+
+
+def serialize_user_out(user: User, session: Session) -> UserOut:
+    tester_summary = TesterReputationOut()
+    if user.role == "tester":
+        tester_summary = build_tester_reputation_map(session, [user.id]).get(user.id, TesterReputationOut())
+
+    return UserOut(
+        id=user.id,
+        email=user.email,
+        name=user.name,
+        role=user.role,
+        subscription=user.subscription,
+        points=user.points,
+        username=user.username,
+        avatar_url=user.avatar_url,
+        streak_current=user.streak_current,
+        streak_best=user.streak_best,
+        responses_count=tester_summary.responses_count,
+        accepted_responses_count=tester_summary.accepted_responses_count,
+        acceptance_rate=tester_summary.acceptance_rate,
+        avg_interest_given=tester_summary.avg_interest_given,
+        best_categories=tester_summary.best_categories,
+        reliability_score=tester_summary.reliability_score,
+    )
 
 
 def hash_password(password: str) -> str:
@@ -628,7 +1252,11 @@ def _build_response_answers_map(session: Session, response_ids: list[int]) -> di
     return mapping
 
 
-def serialize_project(project: Project, question_rows: Optional[list[ProjectQuestion]] = None) -> ProjectOut:
+def serialize_project(
+    project: Project,
+    question_rows: Optional[list[ProjectQuestion]] = None,
+    viewer: Optional[User] = None,
+) -> ProjectOut:
     if question_rows is None:
         questions = decode_legacy_list(project.questions)
     else:
@@ -636,22 +1264,56 @@ def serialize_project(project: Project, question_rows: Optional[list[ProjectQues
         if not questions:
             questions = decode_legacy_list(project.questions)
 
+    image_urls = decode_legacy_list(project.image_urls or "[]")
+
     return ProjectOut(
         id=project.id,
         creator_id=project.creator_id,
         title=project.title,
-        description=project.description,
+        description=_description_by_detail_level(project, viewer),
         target_audience=project.target_audience,
         questions=questions,
+        image_urls=image_urls,
         reward_note=project.reward_note,
         budget=project.budget,
         main_category=project.main_category,
         subcategory=project.subcategory,
         status=project.status,
+        visibility=project.visibility or "public",
+        detail_level=project.detail_level or "concept_summary",
+        allow_indexing=bool(project.allow_indexing),
+        source_innovation_id=project.source_innovation_id,
     )
 
 
-def serialize_response(response: Response, answer_rows: Optional[list[ResponseAnswer]] = None) -> ResponseOut:
+def serialize_project_ai_summary(
+    summary: ProjectAISummary,
+    responses_count: int,
+    cached: bool,
+) -> ProjectAISummaryOut:
+    try:
+        summary_payload = json.loads(summary.summary_json)
+    except json.JSONDecodeError:
+        summary_payload = {"summary": summary.summary_json}
+
+    return ProjectAISummaryOut(
+        project_id=summary.project_id,
+        responses_count=responses_count,
+        model=summary.model,
+        input_hash=summary.input_hash,
+        cached=cached,
+        generated_at=summary.created_at,
+        summary=summary_payload,
+    )
+
+
+def serialize_response(
+    response: Response,
+    answer_rows: Optional[list[ResponseAnswer]] = None,
+    project_title: Optional[str] = None,
+    responder_name: Optional[str] = None,
+    responder_reputation: Optional[TesterReputationOut] = None,
+) -> ResponseOut:
     if answer_rows is None:
         answers = decode_legacy_list(response.answers)
     else:
@@ -662,6 +1324,7 @@ def serialize_response(response: Response, answer_rows: Optional[list[ResponseAn
     return ResponseOut(
         id=response.id,
         project_id=response.project_id,
+        project_title=project_title,
         user_id=response.user_id,
         interest_level=response.interest_level,
         answers=answers,
@@ -670,6 +1333,38 @@ def serialize_response(response: Response, answer_rows: Optional[list[ResponseAn
         accepted_by_creator=response.accepted_by_creator,
         likes_count=response.likes_count,
         created_at=response.created_at,
+        responder_name=responder_name,
+        responder_reputation=responder_reputation,
+    )
+
+
+def serialize_response_comment(
+    comment: ResponseComment,
+    author_name: Optional[str] = None,
+) -> ResponseCommentOut:
+    return ResponseCommentOut(
+        id=comment.id,
+        response_id=comment.response_id,
+        author_id=comment.author_id,
+        author_name=author_name,
+        text=comment.text,
+        created_at=comment.created_at,
+    )
+
+
+def serialize_notification(notification: Notification) -> NotificationOut:
+    try:
+        payload = json.loads(notification.payload_json)
+    except json.JSONDecodeError:
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+    return NotificationOut(
+        id=notification.id,
+        type=notification.type,
+        payload=payload,
+        read=notification.read,
+        created_at=notification.created_at,
     )
 
 
@@ -686,6 +1381,105 @@ def serialize_innovation(innovation: Innovation) -> InnovationOut:
         created_at=innovation.created_at,
         upvotes=innovation.upvotes,
     )
+
+
+def serialize_innovation_comment(
+    comment: InnovationComment,
+    author_name: Optional[str] = None,
+) -> InnovationCommentOut:
+    return InnovationCommentOut(
+        id=comment.id,
+        innovation_id=comment.innovation_id,
+        author_id=comment.author_id,
+        author_name=author_name,
+        text=comment.text,
+        created_at=comment.created_at,
+    )
+
+
+INNOVATION_VALIDATION_DRAFT_QUESTIONS = [
+    "What problem does this idea solve for you?",
+    "How painful is this problem in your current workflow?",
+    "What would make you try this solution?",
+    "What concerns would stop you from using it?",
+    "How much would you be willing to pay for this?",
+]
+
+CREATOR_DECISION_NEXT_STEP = {
+    "draft_or_low_signal": "Get at least 5 responses before making decisions.",
+    "testing": "Keep collecting responses.",
+    "enough_signal": "Review top objections and consider building a landing page or MVP.",
+    "weak_signal": "Reconsider positioning, target audience, or problem statement.",
+    "decision_needed": "Close the test or make a build / pivot / drop decision.",
+}
+
+
+def infer_validation_category_from_innovation(innovation: Innovation) -> Optional[str]:
+    tags = decode_innovation_tags(innovation.tags)
+    normalized = " ".join(tags).lower()
+    if any(keyword in normalized for keyword in {"saas", "app", "software", "ai", "dev", "api"}):
+        return "digital"
+    if any(keyword in normalized for keyword in {"hardware", "device", "wearable", "product"}):
+        return "physical"
+    if any(keyword in normalized for keyword in {"service", "consulting", "agency", "marketplace"}):
+        return "service"
+    if any(keyword in normalized for keyword in {"course", "creator", "learning", "education"}):
+        return "education"
+    if any(keyword in normalized for keyword in {"health", "fitness", "wellness"}):
+        return "health"
+    return None
+
+
+def compute_creator_decision_stage(responses_count: int, avg_interest: Optional[float]) -> str:
+    if responses_count >= 20:
+        return "decision_needed"
+    if responses_count < 5:
+        return "draft_or_low_signal"
+    if responses_count < 15:
+        return "testing"
+    if avg_interest is not None and avg_interest >= 3.5:
+        return "enough_signal"
+    return "weak_signal"
+
+
+def update_tester_streak(tester: User) -> None:
+    now = utc_now()
+    today = now.strftime("%Y-%m-%d")
+    yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+
+    if tester.last_response_date == yesterday:
+        tester.streak_current += 1
+    elif tester.last_response_date != today:
+        tester.streak_current = 1
+
+    tester.streak_best = max(tester.streak_best, tester.streak_current)
+    tester.last_response_date = today
+
+
+def create_launch_notifications(session: Session, project: Project) -> None:
+    response_rows = session.exec(
+        select(Response.user_id, Response.interest_level)
+        .where(Response.project_id == project.id)
+        .order_by(Response.created_at.asc())
+    ).all()
+
+    seen_user_ids: set[int] = set()
+    for user_id, interest_level in response_rows:
+        if user_id in seen_user_ids:
+            continue
+        seen_user_ids.add(user_id)
+        payload = {
+            "project_id": project.id,
+            "project_title": project.title,
+            "your_interest": interest_level,
+        }
+        session.add(
+            Notification(
+                user_id=user_id,
+                type="prediction_confirmed",
+                payload_json=json.dumps(payload, ensure_ascii=False),
+            )
+        )
 
 
 def _percentile(values: list[float], percentile: float) -> float:
@@ -723,6 +1517,297 @@ def _compute_price_percentiles(price_rows: list[tuple[Optional[int], Optional[in
         "p50": _percentile(samples, 0.50),
         "p75": _percentile(samples, 0.75),
     }
+
+
+AI_SUMMARY_JSON_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "summary": {"type": "string"},
+        "key_signals": {"type": "array", "items": {"type": "string"}},
+        "pricing_insight": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "willingness": {"type": "string"},
+                "observed_range": {"type": "string"},
+                "notes": {"type": "string"},
+            },
+            "required": ["willingness", "observed_range", "notes"],
+        },
+        "interest_insight": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "distribution_note": {"type": "string"},
+                "best_segment": {"type": "string"},
+            },
+            "required": ["distribution_note", "best_segment"],
+        },
+        "top_objections": {"type": "array", "items": {"type": "string"}},
+        "suggested_next_steps": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": [
+        "summary",
+        "key_signals",
+        "pricing_insight",
+        "interest_insight",
+        "top_objections",
+        "suggested_next_steps",
+    ],
+}
+
+
+def _format_price_range(price_min: Optional[int], price_max: Optional[int]) -> str:
+    if price_min is not None and price_max is not None:
+        return f"{price_min}-{price_max}"
+    if price_min is not None:
+        return f"{price_min}+"
+    if price_max is not None:
+        return f"up to {price_max}"
+    return "not specified"
+
+
+def build_ai_summary_input(
+    project: Project,
+    question_rows: list[ProjectQuestion],
+    responses: list[Response],
+    answer_map: dict[int, list[ResponseAnswer]],
+) -> str:
+    questions = [row.text for row in question_rows] or decode_legacy_list(project.questions)
+    lines = [
+        "Project:",
+        f"Title: {project.title}",
+        f"Description: {project.description}",
+        f"Target audience: {project.target_audience}",
+        f"Reward note: {project.reward_note or 'not specified'}",
+        f"Budget: {project.budget}",
+        f"Category: {project.main_category} / {project.subcategory or 'none'}",
+        "",
+        "Questions:",
+    ]
+
+    for index, question in enumerate(questions, start=1):
+        lines.append(f"{index}. {question}")
+
+    lines.extend(["", f"Responses count: {len(responses)}", "Responses:"])
+    if not responses:
+        lines.append("- No responses yet.")
+        return "\n".join(lines)
+
+    for response in responses:
+        lines.append(
+            "- "
+            f"Response #{response.id}; "
+            f"Interest: {response.interest_level}/5; "
+            f"Price: {_format_price_range(response.price_min, response.price_max)}; "
+            f"Accepted: {str(response.accepted_by_creator).lower()}"
+        )
+
+        answer_rows = answer_map.get(response.id, [])
+        answers = [row.text for row in answer_rows] or decode_legacy_list(response.answers)
+        for index, answer in enumerate(answers, start=1):
+            question_text = questions[index - 1] if index - 1 < len(questions) else f"Question {index}"
+            lines.append(f"  Q{index}: {question_text}")
+            lines.append(f"  A{index}: {answer}")
+
+    return "\n".join(lines)
+
+
+def _extract_response_text(response_payload: dict[str, Any]) -> str:
+    output_text = response_payload.get("output_text")
+    if isinstance(output_text, str) and output_text.strip():
+        return output_text
+
+    output = response_payload.get("output")
+    if isinstance(output, list):
+        chunks: list[str] = []
+        for item in output:
+            if not isinstance(item, dict):
+                continue
+            content = item.get("content")
+            if not isinstance(content, list):
+                continue
+            for content_item in content:
+                if not isinstance(content_item, dict):
+                    continue
+                text = content_item.get("text")
+                if isinstance(text, str):
+                    chunks.append(text)
+        if chunks:
+            return "\n".join(chunks)
+
+    raise HTTPException(status_code=502, detail="AI provider returned an empty response")
+
+
+def _schema_with_property_ordering(schema: dict[str, Any]) -> dict[str, Any]:
+    copied_schema = json.loads(json.dumps(schema))
+
+    def add_ordering(node: dict[str, Any]) -> None:
+        properties = node.get("properties")
+        if isinstance(properties, dict):
+            node["propertyOrdering"] = list(properties.keys())
+            for child in properties.values():
+                if isinstance(child, dict):
+                    add_ordering(child)
+
+        items = node.get("items")
+        if isinstance(items, dict):
+            add_ordering(items)
+
+    add_ordering(copied_schema)
+    return copied_schema
+
+
+async def _call_openai_summary(summary_input: str) -> dict[str, Any]:
+    if not AI_API_KEY:
+        raise HTTPException(status_code=501, detail="AI API key is not configured")
+
+    request_payload = {
+        "model": AI_MODEL,
+        "input": [
+            {
+                "role": "system",
+                "content": (
+                    "You summarize structured product validation feedback for a creator. "
+                    "Return concise, evidence-based JSON only. Do not use markdown."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    "Analyze this validation dataset and return the requested JSON schema.\n\n"
+                    f"{summary_input}"
+                ),
+            },
+        ],
+        "text": {
+            "format": {
+                "type": "json_schema",
+                "name": "project_ai_summary",
+                "strict": True,
+                "schema": AI_SUMMARY_JSON_SCHEMA,
+            }
+        },
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=AI_REQUEST_TIMEOUT_SECONDS) as client:
+            response = await client.post(
+                "https://api.openai.com/v1/responses",
+                json=request_payload,
+                headers={
+                    "Authorization": f"Bearer {AI_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+            )
+        response.raise_for_status()
+        response_payload = response.json()
+    except httpx.HTTPStatusError as error:
+        raise HTTPException(status_code=502, detail=f"AI provider request failed: {error.response.text}")
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="AI provider request timed out")
+    except httpx.HTTPError as error:
+        raise HTTPException(status_code=502, detail=f"AI provider request failed: {error}")
+
+    raw_text = _extract_response_text(response_payload)
+    try:
+        return json.loads(raw_text)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=502, detail="AI provider returned invalid JSON")
+
+
+def _extract_gemini_text(response_payload: dict[str, Any]) -> str:
+    candidates = response_payload.get("candidates")
+    if not isinstance(candidates, list):
+        raise HTTPException(status_code=502, detail="Gemini returned no candidates")
+
+    chunks: list[str] = []
+    for candidate in candidates:
+        if not isinstance(candidate, dict):
+            continue
+        content = candidate.get("content")
+        if not isinstance(content, dict):
+            continue
+        parts = content.get("parts")
+        if not isinstance(parts, list):
+            continue
+        for part in parts:
+            if not isinstance(part, dict):
+                continue
+            text = part.get("text")
+            if isinstance(text, str):
+                chunks.append(text)
+
+    if not chunks:
+        raise HTTPException(status_code=502, detail="Gemini returned an empty response")
+    return "\n".join(chunks)
+
+
+async def _call_gemini_summary(summary_input: str) -> dict[str, Any]:
+    if not GEMINI_API_KEY:
+        raise HTTPException(status_code=501, detail="Gemini API key is not configured")
+
+    prompt = (
+        "You summarize structured product validation feedback for a creator. "
+        "Return concise, evidence-based JSON only. Do not use markdown.\n\n"
+        "Analyze this validation dataset and return the requested JSON schema.\n\n"
+        f"{summary_input}"
+    )
+    request_payload = {
+        "contents": [
+            {
+                "role": "user",
+                "parts": [{"text": prompt}],
+            }
+        ],
+        "generationConfig": {
+            "responseMimeType": "application/json",
+            "responseJsonSchema": _schema_with_property_ordering(AI_SUMMARY_JSON_SCHEMA),
+        },
+    }
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{AI_MODEL}:generateContent"
+
+    try:
+        async with httpx.AsyncClient(timeout=AI_REQUEST_TIMEOUT_SECONDS) as client:
+            response = await client.post(
+                url,
+                json=request_payload,
+                headers={
+                    "Content-Type": "application/json",
+                    "x-goog-api-key": GEMINI_API_KEY,
+                },
+            )
+        response.raise_for_status()
+        response_payload = response.json()
+    except httpx.HTTPStatusError as error:
+        raise HTTPException(status_code=502, detail=f"Gemini request failed: {error.response.text}")
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="Gemini request timed out")
+    except httpx.HTTPError as error:
+        raise HTTPException(status_code=502, detail=f"Gemini request failed: {error}")
+
+    raw_text = _extract_gemini_text(response_payload)
+    try:
+        return json.loads(raw_text)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=502, detail="Gemini returned invalid JSON")
+
+
+async def generate_ai_summary(summary_input: str) -> dict[str, Any]:
+    if AI_PROVIDER == "disabled":
+        raise HTTPException(status_code=501, detail="AI provider is not configured")
+    if AI_PROVIDER == "openai":
+        return await _call_openai_summary(summary_input)
+    if AI_PROVIDER == "gemini":
+        return await _call_gemini_summary(summary_input)
+    raise HTTPException(status_code=501, detail=f"Unsupported AI provider: {AI_PROVIDER}")
+
+
+async def _resolve_ai_summary_result(value: Any) -> dict[str, Any]:
+    if inspect.isawaitable(value):
+        return await value
+    return value
 
 
 def _can_creator_post_project(session: Session, user: User) -> bool:
@@ -835,9 +1920,31 @@ def get_current_user(
     return user
 
 
+def get_optional_current_user(
+    authorization: Optional[str] = Header(default=None),
+    session: Session = Depends(get_session),
+) -> Optional[User]:
+    if not authorization:
+        return None
+
+    token = get_bearer_token(authorization)
+    payload = decode_access_token(token)
+    user_id = payload["sub"]
+    user = session.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    return user
+
+
 def require_creator(current_user: User = Depends(get_current_user)) -> User:
     if current_user.role != "creator":
         raise HTTPException(status_code=403, detail="Creator account required")
+    return current_user
+
+
+def require_tester(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.role != "tester":
+        raise HTTPException(status_code=403, detail="Tester account required")
     return current_user
 
 
@@ -846,6 +1953,13 @@ def require_creator(current_user: User = Depends(get_current_user)) -> User:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    if SECRET_KEY == "dev-secret-change-me":
+        if APP_ENV in {"production", "prod"}:
+            raise RuntimeError("XSOLIA_SECRET_KEY must be set before starting in production.")
+        warnings.warn(
+            "XSOLIA_SECRET_KEY is using the default dev value. Set it before deploying.",
+            stacklevel=1,
+        )
     create_db_and_tables()
     with Session(engine) as session:
         migrate_legacy_question_answer_rows(session)
@@ -857,491 +1971,39 @@ app = FastAPI(title="xsolia API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
-# ====================== Auth APIs ======================
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(_: Request, exc: RequestValidationError):
+    fields: dict[str, str] = {}
 
+    for error in exc.errors():
+        loc = error.get("loc", ())
+        field = next((str(item) for item in reversed(loc) if isinstance(item, str)), "general")
+        if field == "body":
+            field = "general"
 
-@app.post("/register", response_model=UserOut)
-def register(
-    user: UserCreate,
-    request: Request,
-    session: Session = Depends(get_session),
-):
-    _enforce_auth_rate_limit(request, user.email)
+        message = error.get("msg") or error.get("type") or "Invalid value"
+        if isinstance(message, str) and message.startswith("Value error, "):
+            message = message.removeprefix("Value error, ")
 
-    existing = session.exec(select(User).where(User.email == user.email)).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
+        if field not in fields:
+            fields[field] = str(message)
 
-    db_user = User(
-        email=user.email,
-        name=user.name,
-        password_hash=hash_password(user.password),
-        role=user.role,
-        subscription=user.subscription,
-    )
-    session.add(db_user)
+    detail = " · ".join(fields.values()) or "Invalid request"
+    return JSONResponse(status_code=422, content={"detail": detail, "fields": fields})
 
-    try:
-        session.commit()
-    except IntegrityError:
-        session.rollback()
-        raise HTTPException(status_code=400, detail="Email already registered")
 
-    session.refresh(db_user)
-    return UserOut.model_validate(db_user)
+# ====================== Routers ======================
 
+from routes import auth_router, health_router, innovations_router, projects_router
 
-@app.post("/login", response_model=LoginOut)
-def login(
-    data: UserLogin,
-    request: Request,
-    session: Session = Depends(get_session),
-):
-    _enforce_auth_rate_limit(request, data.email)
-
-    user = session.exec(select(User).where(User.email == data.email)).first()
-    if not user or not verify_password(data.password, user.password_hash):
-        raise HTTPException(status_code=400, detail="Invalid email or password")
-
-    # Opportunistic password migration for old sha256 hashes.
-    if "$" not in user.password_hash:
-        user.password_hash = hash_password(data.password)
-        session.add(user)
-        session.commit()
-
-    access_token = create_access_token(user)
-    return LoginOut(
-        user_id=user.id,
-        role=user.role,
-        name=user.name,
-        subscription=user.subscription,
-        access_token=access_token,
-        token_type="bearer",
-        expires_in=TOKEN_EXPIRE_SECONDS,
-    )
-
-
-@app.get("/me", response_model=UserOut)
-def me(current_user: User = Depends(get_current_user)):
-    return UserOut.model_validate(current_user)
-
-
-# ====================== Project APIs ======================
-
-
-@app.post("/projects", response_model=ProjectOut)
-def create_project(
-    payload: ProjectCreate,
-    current_user: User = Depends(require_creator),
-    session: Session = Depends(get_session),
-):
-    if not _can_creator_post_project(session, current_user):
-        if current_user.subscription == "free":
-            raise HTTPException(
-                status_code=403,
-                detail=(
-                    "Free creator quota used. Upgrade to creator_basic or creator_plus "
-                    "to publish more projects"
-                ),
-            )
-        raise HTTPException(status_code=403, detail="Creator subscription required to post")
-
-    project = Project(
-        creator_id=current_user.id,
-        title=payload.title,
-        description=payload.description,
-        target_audience=payload.target_audience,
-        questions=encode_legacy_list(payload.questions),
-        reward_note=payload.reward_note,
-        budget=payload.budget,
-        main_category=payload.main_category,
-        subcategory=payload.subcategory,
-        status="active",
-    )
-
-    session.add(project)
-    session.flush()
-
-    question_rows = [
-        ProjectQuestion(project_id=project.id, position=idx, text=question)
-        for idx, question in enumerate(payload.questions)
-    ]
-    for row in question_rows:
-        session.add(row)
-
-    try:
-        session.commit()
-    except IntegrityError:
-        session.rollback()
-        raise HTTPException(status_code=400, detail="Failed to create project")
-
-    session.refresh(project)
-    return serialize_project(project, question_rows)
-
-
-@app.get("/projects/active", response_model=list[ProjectOut])
-def list_active_projects(
-    main_category: Optional[str] = None,
-    subcategory: Optional[str] = None,
-    limit: int = Query(default=20, ge=1, le=100),
-    offset: int = Query(default=0, ge=0),
-    session: Session = Depends(get_session),
-):
-    stmt = select(Project).where(Project.status == "active")
-
-    if main_category:
-        stmt = stmt.where(Project.main_category == main_category)
-    if subcategory:
-        stmt = stmt.where(Project.subcategory == subcategory)
-
-    projects = session.exec(stmt.order_by(Project.id.desc()).offset(offset).limit(limit)).all()
-    question_map = _build_project_questions_map(
-        session,
-        [project.id for project in projects if project.id is not None],
-    )
-
-    return [serialize_project(project, question_map.get(project.id, [])) for project in projects]
-
-
-@app.get("/projects/mine", response_model=list[ProjectOut])
-def list_my_projects(
-    status: Optional[str] = "active",
-    limit: int = Query(default=20, ge=1, le=100),
-    offset: int = Query(default=0, ge=0),
-    current_user: User = Depends(require_creator),
-    session: Session = Depends(get_session),
-):
-    stmt = select(Project).where(Project.creator_id == current_user.id)
-    if status:
-        stmt = stmt.where(Project.status == status)
-
-    projects = session.exec(stmt.order_by(Project.id.desc()).offset(offset).limit(limit)).all()
-    question_map = _build_project_questions_map(
-        session,
-        [project.id for project in projects if project.id is not None],
-    )
-    return [serialize_project(project, question_map.get(project.id, [])) for project in projects]
-
-
-@app.get("/projects/{project_id}", response_model=ProjectOut)
-def get_project(project_id: int, session: Session = Depends(get_session)):
-    project = session.get(Project, project_id)
-    if not project or project.status != "active":
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    question_rows = session.exec(
-        select(ProjectQuestion)
-        .where(ProjectQuestion.project_id == project_id)
-        .order_by(ProjectQuestion.position)
-    ).all()
-    return serialize_project(project, question_rows)
-
-
-@app.post("/projects/{project_id}/respond")
-def respond_to_project(
-    project_id: int,
-    payload: ResponseCreate,
-    current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session),
-):
-    project = session.get(Project, project_id)
-    if not project or project.status != "active":
-        raise HTTPException(status_code=404, detail="Project not found or inactive")
-
-    if project.creator_id == current_user.id:
-        raise HTTPException(status_code=403, detail="Project creators cannot respond to their own project")
-
-    existing = session.exec(
-        select(Response).where(
-            Response.project_id == project_id,
-            Response.user_id == current_user.id,
-        )
-    ).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="User already responded to this project")
-
-    project_questions = session.exec(
-        select(ProjectQuestion)
-        .where(ProjectQuestion.project_id == project_id)
-        .order_by(ProjectQuestion.position)
-    ).all()
-
-    if project_questions and len(payload.answers) != len(project_questions):
-        raise HTTPException(
-            status_code=422,
-            detail="answers length must match the number of project questions",
-        )
-
-    response = Response(
-        project_id=project_id,
-        user_id=current_user.id,
-        interest_level=payload.interest_level,
-        answers=encode_legacy_list(payload.answers),
-        price_min=payload.price_min,
-        price_max=payload.price_max,
-    )
-
-    session.add(response)
-    session.flush()
-
-    for idx, answer in enumerate(payload.answers):
-        question_id = project_questions[idx].id if idx < len(project_questions) else None
-        session.add(
-            ResponseAnswer(
-                response_id=response.id,
-                question_id=question_id,
-                position=idx,
-                text=answer,
-            )
-        )
-
-    try:
-        session.commit()
-    except IntegrityError:
-        session.rollback()
-        raise HTTPException(status_code=400, detail="User already responded to this project")
-
-    session.refresh(response)
-    return {"ok": True, "response_id": response.id}
-
-
-@app.get("/projects/{project_id}/responses", response_model=list[ResponseOut])
-def list_project_responses(
-    project_id: int,
-    current_user: User = Depends(require_creator),
-    limit: int = Query(default=20, ge=1, le=100),
-    offset: int = Query(default=0, ge=0),
-    session: Session = Depends(get_session),
-):
-    project = session.get(Project, project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    if project.creator_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Only the project creator can view responses")
-
-    responses = session.exec(
-        select(Response)
-        .where(Response.project_id == project_id)
-        .order_by(Response.created_at.desc())
-        .offset(offset)
-        .limit(limit)
-    ).all()
-
-    answer_map = _build_response_answers_map(
-        session,
-        [response.id for response in responses if response.id is not None],
-    )
-    return [serialize_response(response, answer_map.get(response.id, [])) for response in responses]
-
-
-@app.post("/responses/{response_id}/accept")
-def accept_response(
-    response_id: int,
-    current_user: User = Depends(require_creator),
-    session: Session = Depends(get_session),
-):
-    response = session.get(Response, response_id)
-    if not response:
-        raise HTTPException(status_code=404, detail="Response not found")
-
-    project = session.get(Project, response.project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    if project.creator_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Only the project creator can accept a response")
-
-    if response.accepted_by_creator:
-        raise HTTPException(status_code=400, detail="Response already accepted")
-
-    response.accepted_by_creator = True
-    response.accepted_at = utc_now()
-
-    responder = session.get(User, response.user_id)
-    if responder:
-        responder.points += 10
-    current_user.points += 2
-
-    session.add(response)
-    session.add(current_user)
-    if responder:
-        session.add(responder)
-
-    session.commit()
-    session.refresh(response)
-
-    return {"ok": True, "response_id": response.id}
-
-
-@app.get("/projects/{project_id}/stats", response_model=ProjectStats)
-def project_stats(
-    project_id: int,
-    current_user: User = Depends(require_creator),
-    session: Session = Depends(get_session),
-):
-    project = session.get(Project, project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    if project.creator_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Only the project creator can view project stats")
-
-    total = session.exec(
-        select(func.count(Response.id)).where(Response.project_id == project_id)
-    ).one()
-    total = int(total or 0)
-    interest_distribution = {score: 0 for score in range(1, 6)}
-
-    if total == 0:
-        return ProjectStats(
-            project_id=project_id,
-            responses_count=0,
-            interest_distribution=interest_distribution,
-            avg_interest=None,
-            interest_stddev=None,
-            avg_price_min=None,
-            avg_price_max=None,
-            price_percentiles=None,
-            acceptance_rate=0.0,
-        )
-
-    interest_rows = session.exec(
-        select(Response.interest_level, func.count(Response.id))
-        .where(Response.project_id == project_id)
-        .group_by(Response.interest_level)
-    ).all()
-    for level, count in interest_rows:
-        if level in interest_distribution:
-            interest_distribution[level] = int(count)
-
-    sum_interest = session.exec(
-        select(func.sum(Response.interest_level)).where(Response.project_id == project_id)
-    ).one()
-    sum_interest_sq = session.exec(
-        select(func.sum(Response.interest_level * Response.interest_level)).where(Response.project_id == project_id)
-    ).one()
-
-    avg_interest = float(sum_interest) / total
-    variance = max((float(sum_interest_sq) / total) - (avg_interest * avg_interest), 0.0)
-    interest_stddev = sqrt(variance)
-
-    avg_price_min = session.exec(
-        select(func.avg(Response.price_min)).where(
-            Response.project_id == project_id,
-            Response.price_min.is_not(None),
-        )
-    ).one()
-    avg_price_max = session.exec(
-        select(func.avg(Response.price_max)).where(
-            Response.project_id == project_id,
-            Response.price_max.is_not(None),
-        )
-    ).one()
-
-    accepted_count = session.exec(
-        select(func.count(Response.id)).where(
-            Response.project_id == project_id,
-            Response.accepted_by_creator.is_(True),
-        )
-    ).one()
-    accepted_count = int(accepted_count or 0)
-
-    price_rows = session.exec(
-        select(Response.price_min, Response.price_max).where(
-            Response.project_id == project_id,
-            (Response.price_min.is_not(None)) | (Response.price_max.is_not(None)),
-        )
-    ).all()
-
-    return ProjectStats(
-        project_id=project_id,
-        responses_count=total,
-        interest_distribution=interest_distribution,
-        avg_interest=avg_interest,
-        interest_stddev=interest_stddev,
-        avg_price_min=float(avg_price_min) if avg_price_min is not None else None,
-        avg_price_max=float(avg_price_max) if avg_price_max is not None else None,
-        price_percentiles=_compute_price_percentiles(price_rows),
-        acceptance_rate=accepted_count / total,
-    )
-
-
-@app.get("/projects/{project_id}/ai-summary")
-def ai_summary(
-    project_id: int,
-    current_user: User = Depends(require_creator),
-    session: Session = Depends(get_session),
-):
-    project = session.get(Project, project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    if project.creator_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Only the project creator can access AI summary")
-    if current_user.subscription != "creator_plus":
-        raise HTTPException(status_code=403, detail="Plus subscription required")
-
-    raise HTTPException(status_code=501, detail="AI summary is not available yet")
-
-
-# ====================== Innovation APIs ======================
-
-
-@app.post("/innovations", response_model=InnovationOut)
-def create_innovation(
-    payload: InnovationCreate,
-    current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session),
-):
-    tags_text = encode_innovation_tags(payload.tags)
-
-    innovation = Innovation(
-        author_id=current_user.id,
-        title=payload.title,
-        description=payload.description,
-        tags=tags_text,
-        intent=payload.intent,
-        status="active",
-    )
-    session.add(innovation)
-    session.commit()
-    session.refresh(innovation)
-
-    return serialize_innovation(innovation)
-
-
-@app.get("/innovations", response_model=list[InnovationOut])
-def list_innovations(
-    limit: int = Query(default=20, ge=1, le=100),
-    offset: int = Query(default=0, ge=0),
-    session: Session = Depends(get_session),
-):
-    innovations = session.exec(
-        select(Innovation)
-        .where(Innovation.status == "active")
-        .order_by(Innovation.created_at.desc())
-        .offset(offset)
-        .limit(limit)
-    ).all()
-    return [serialize_innovation(innovation) for innovation in innovations]
-
-
-@app.get("/innovations/{innovation_id}", response_model=InnovationOut)
-def get_innovation(innovation_id: int, session: Session = Depends(get_session)):
-    innovation = session.get(Innovation, innovation_id)
-    if not innovation or innovation.status != "active":
-        raise HTTPException(status_code=404, detail="Innovation not found")
-    return serialize_innovation(innovation)
-
-
-# ====================== Health ======================
-
-
-@app.get("/health")
-def health():
-    return {"status": "ok"}
+app.include_router(auth_router)
+app.include_router(projects_router)
+app.include_router(innovations_router)
+app.include_router(health_router)

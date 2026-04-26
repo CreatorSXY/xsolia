@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Tester Dashboard · xsolia.com</title>
+  <title>Tester Dashboard · Krotka.ai by xSolia</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="css/theme.css">
+  <link rel="stylesheet" href="css/theme.css?v=20260424-gsap">
 </head>
 
 <body class="min-h-screen flex flex-col">
@@ -31,7 +31,7 @@
             k
           </div>
           <div>
-            <div class="site-logo-text">xsolia.com</div>
+            <div class="site-logo-text">Krotka.ai by xSolia</div>
             <div class="site-subtitle">Early validation playground</div>
           </div>
         </a>
@@ -99,46 +99,410 @@
   </div>
 
   <!-- Main Content -->
-  <main class="flex-1 container" style="padding-top:1.5rem; padding-bottom:2rem;">
-    <section class="section">
-      <h1 style="font-size:1.4rem; font-weight:600; margin-bottom:0.4rem;">Tester dashboard</h1>
-      <p style="font-size:0.9rem; color:#6b7280; max-width:520px; margin:0;">
-        Hello, <span id="testerName"></span>! You play a crucial role in shaping future products. Browse topics,
-        share honest feedback, and help creators make better decisions.
-      </p>
+  <main class="flex-1 container workspace-shell" style="padding-top:1.5rem; padding-bottom:2rem;">
+    <section class="section workspace-hero motion-reveal">
+      <div>
+        <h1 style="font-size:1.4rem; font-weight:600; margin-bottom:0.4rem;">Tester dashboard</h1>
+        <p style="font-size:0.9rem; color:#6b7280; max-width:520px; margin:0;">
+          Hello, <span id="testerName"></span>! Browse focused picks, share honest feedback, and help creators make better decisions.
+        </p>
+      </div>
+      <div style="display:flex; flex-direction:column; align-items:flex-end; gap:0.45rem;">
+        <span id="streakValue" class="x-badge">0 day streak</span>
+        <span id="pointsValue" class="x-badge font-data">0 pts</span>
+        <span id="streakBadge" class="x-badge hidden">7-day badge</span>
+        <a href="leaderboard.html" class="x-btn-secondary" style="font-size:0.78rem;">Leaderboard</a>
+        <button id="usernameBtn" type="button" class="x-btn-secondary" style="font-size:0.78rem;">Set public username</button>
+        <span id="usernameHint" style="font-size:0.76rem;color:#6b7280;max-width:220px;text-align:right;"></span>
+        <button id="notificationsBtn" type="button" class="x-btn-secondary" style="position:relative;font-size:0.78rem;">
+          Notifications
+          <span id="notificationDot" class="notification-dot hidden" style="position:absolute;right:0.45rem;top:0.35rem;width:8px;height:8px;border-radius:999px;background:#bd4228;"></span>
+        </button>
+      </div>
     </section>
 
-    <section class="section">
-      <a href="explore.html" class="x-btn-primary">
-        Browse validation topics
-      </a>
+    <section id="notificationsPanel" class="section x-card hidden motion-reveal" style="max-width:960px;margin-left:auto;margin-right:auto;">
+      <h2 style="font-size:1.05rem;font-weight:800;margin:0 0 0.65rem;">Notifications</h2>
+      <div id="notificationsList" class="flex flex-col gap-2"></div>
+      <p id="notificationsEmpty" class="hidden" style="font-size:0.85rem;color:#9ca3af;">No unread notifications.</p>
     </section>
 
-    <section class="section">
+    <section class="section x-card motion-reveal" style="max-width:960px;margin-left:auto;margin-right:auto;">
+      <div class="flex flex-wrap items-center justify-between gap-3" style="margin-bottom:0.7rem;">
+        <div>
+          <p class="eyebrow">Quality signal</p>
+          <h2 style="font-size:1.05rem;font-weight:800;margin:0;">Your tester reputation</h2>
+        </div>
+      </div>
+      <div class="grid md:grid-cols-3 gap-3">
+        <div class="x-card">
+          <p style="font-size:0.76rem;color:#6b7280;margin-bottom:0.2rem;">Reliability score</p>
+          <p id="repReliability" class="font-data" style="font-size:1.4rem;">0</p>
+        </div>
+        <div class="x-card">
+          <p style="font-size:0.76rem;color:#6b7280;margin-bottom:0.2rem;">Accepted responses</p>
+          <p id="repAccepted" class="font-data" style="font-size:1.4rem;">0</p>
+        </div>
+        <div class="x-card">
+          <p style="font-size:0.76rem;color:#6b7280;margin-bottom:0.2rem;">Acceptance rate</p>
+          <p id="repAcceptanceRate" class="font-data" style="font-size:1.4rem;">0%</p>
+        </div>
+        <div class="x-card">
+          <p style="font-size:0.76rem;color:#6b7280;margin-bottom:0.2rem;">Responses submitted</p>
+          <p id="repResponses" class="font-data" style="font-size:1.2rem;">0</p>
+        </div>
+        <div class="x-card">
+          <p style="font-size:0.76rem;color:#6b7280;margin-bottom:0.2rem;">Best categories</p>
+          <p id="repCategories" style="font-size:0.88rem;color:#4b5563;">—</p>
+        </div>
+        <div class="x-card">
+          <p style="font-size:0.76rem;color:#6b7280;margin-bottom:0.2rem;">Streak</p>
+          <p id="repStreak" class="font-data" style="font-size:1.2rem;">0 day</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section x-card motion-reveal" style="max-width:960px;margin-left:auto;margin-right:auto;">
+      <div class="flex flex-wrap items-center justify-between gap-3" style="margin-bottom:0.75rem;">
+        <div>
+          <p class="eyebrow">Today&apos;s picks</p>
+          <h2 style="font-size:1.05rem;font-weight:800;margin:0;">Three topics worth answering</h2>
+        </div>
+        <a href="explore.html" class="x-btn-secondary" style="font-size:0.78rem;">Browse all</a>
+      </div>
+      <div id="dailyPicks" class="grid md:grid-cols-3 gap-3"></div>
+      <p id="dailyPicksEmpty" class="hidden" style="font-size:0.9rem;color:#9ca3af;">Come back tomorrow.</p>
+      <p id="dailyPicksError" class="hidden" style="font-size:0.9rem;color:#f97373;"></p>
+    </section>
+
+    <section class="section x-card surface-list motion-reveal">
       <h2 style="font-size:1.05rem; font-weight:600; margin-bottom:0.3rem;">Topics you’ve contributed to</h2>
-      <p style="font-size:0.9rem; color:#9ca3af;">
-        We will soon display the topics you have answered here.
+      <p style="font-size:0.78rem; color:#9ca3af; margin-bottom:0.7rem;">Showing latest 50 responses.</p>
+      <div id="responseHistory" class="flex flex-col gap-3"></div>
+      <p id="historyEmpty" class="hidden" style="font-size:0.9rem; color:#9ca3af;">
+        You have not answered any validation topics yet.
       </p>
+      <p id="historyError" class="hidden" style="font-size:0.9rem; color:#f97373;"></p>
     </section>
   </main>
 
-  <footer style="text-align:center; padding:1.5rem 0; font-size:0.75rem; color:#9ca3af;">
-    © 2025 xsolia.com
+  <footer style="text-align:center; padding:1.5rem 0; font-size:0.75rem; color:var(--ink-faint);">
+    © 2026 Krotka.ai by xSolia
   </footer>
 
+  <script src="js/app.js?v=20260424-gsap"></script>
   <script src="js/logo.js"></script>
   <script src="js/nav.js"></script>
   <script>
-    const userId = localStorage.getItem('user_id');
-    const role = localStorage.getItem('role');
-    const name = localStorage.getItem('name');
+    const session = XsoliaApp.requireAuth({ role: 'tester', redirect: 'login.html?role=tester' });
     const testerNameEl = document.getElementById('testerName');
+    const responseHistoryEl = document.getElementById('responseHistory');
+    const historyEmptyEl = document.getElementById('historyEmpty');
+    const historyErrorEl = document.getElementById('historyError');
+    const streakValueEl = document.getElementById('streakValue');
+    const pointsValueEl = document.getElementById('pointsValue');
+    const streakBadgeEl = document.getElementById('streakBadge');
+    const usernameBtn = document.getElementById('usernameBtn');
+    const usernameHint = document.getElementById('usernameHint');
+    const dailyPicksEl = document.getElementById('dailyPicks');
+    const dailyPicksEmptyEl = document.getElementById('dailyPicksEmpty');
+    const dailyPicksErrorEl = document.getElementById('dailyPicksError');
+    const notificationsBtn = document.getElementById('notificationsBtn');
+    const notificationsPanel = document.getElementById('notificationsPanel');
+    const notificationsList = document.getElementById('notificationsList');
+    const notificationsEmpty = document.getElementById('notificationsEmpty');
+    const notificationDot = document.getElementById('notificationDot');
+    const repReliabilityEl = document.getElementById('repReliability');
+    const repAcceptedEl = document.getElementById('repAccepted');
+    const repAcceptanceRateEl = document.getElementById('repAcceptanceRate');
+    const repResponsesEl = document.getElementById('repResponses');
+    const repCategoriesEl = document.getElementById('repCategories');
+    const repStreakEl = document.getElementById('repStreak');
 
-    if (!userId || role !== 'tester') {
-      alert('Please log in as an early tester to access this page.');
-      window.location.href = 'login.html';
+    if (!session) {
+      throw new Error('Authentication required');
     } else {
-      testerNameEl.textContent = name || '';
+      testerNameEl.textContent = session.name || '';
+      updateUsernameHint(session.username || '');
+      loadTesterStatus();
+      loadDailyPicks();
+      loadNotifications();
+      loadResponseHistory();
+    }
+
+    async function loadTesterStatus() {
+      try {
+        const { response, data } = await XsoliaApp.apiFetch('/me', { auth: true });
+        if (!response.ok) return;
+        const streak = data.streak_current || 0;
+        streakValueEl.textContent = `${streak} day streak`;
+        pointsValueEl.textContent = `${Number(data.points || 0)} pts`;
+        streakBadgeEl.classList.toggle('hidden', streak < 7);
+        repReliabilityEl.textContent = String(Number(data.reliability_score || 0));
+        repAcceptedEl.textContent = String(Number(data.accepted_responses_count || 0));
+        repAcceptanceRateEl.textContent = `${Math.round(Number(data.acceptance_rate || 0) * 100)}%`;
+        repResponsesEl.textContent = String(Number(data.responses_count || 0));
+        repCategoriesEl.textContent = Array.isArray(data.best_categories) && data.best_categories.length
+          ? data.best_categories.join(' · ')
+          : '—';
+        repStreakEl.textContent = `${streak} day${streak === 1 ? '' : 's'}`;
+        updateUsernameHint(data.username || '');
+      } catch (_err) {
+        // Status is decorative and should not block the dashboard.
+      }
+    }
+
+    function updateUsernameHint(username) {
+      if (username) {
+        usernameHint.textContent = `Public handle: @${username}`;
+        usernameBtn.textContent = 'Update username';
+      } else {
+        usernameHint.textContent = 'Set a public handle to appear in leaderboard.';
+        usernameBtn.textContent = 'Set public username';
+      }
+    }
+
+    usernameBtn.addEventListener('click', async () => {
+      const current = XsoliaApp.getSession().username || '';
+      const input = window.prompt('Choose a public username: 3-30 letters, numbers, or underscores.', current);
+      if (!input) return;
+      usernameBtn.disabled = true;
+      try {
+        const { response, data } = await XsoliaApp.apiFetch('/me/username', {
+          method: 'PATCH',
+          auth: true,
+          body: { username: input },
+        });
+        if (!response.ok) {
+          throw new Error(XsoliaApp.formatApiError(data, 'Failed to set username.'));
+        }
+        XsoliaApp.setSession({ username: data.username });
+        updateUsernameHint(data.username || '');
+      } catch (err) {
+        window.alert(err.message || 'Failed to set username.');
+      } finally {
+        usernameBtn.disabled = false;
+      }
+    });
+
+    async function loadDailyPicks() {
+      dailyPicksEl.innerHTML = '';
+      dailyPicksEmptyEl.classList.add('hidden');
+      dailyPicksErrorEl.classList.add('hidden');
+
+      try {
+        const { response, data } = await XsoliaApp.apiFetch('/me/daily-picks', { auth: true });
+        if (!response.ok) throw new Error(XsoliaApp.formatApiError(data, 'Failed to load daily picks.'));
+        const completedToday = Boolean(data && data.completed_today);
+        const picks = Array.isArray(data)
+          ? data
+          : (Array.isArray(data && data.picks) ? data.picks : []);
+        if (completedToday) {
+          dailyPicksEmptyEl.textContent = 'Come back tomorrow.';
+          dailyPicksEmptyEl.classList.remove('hidden');
+          return;
+        }
+        if (!picks.length) {
+          dailyPicksEmptyEl.textContent = 'No fresh active topics right now.';
+          dailyPicksEmptyEl.classList.remove('hidden');
+          return;
+        }
+        picks.forEach((project) => dailyPicksEl.appendChild(createDailyPickCard(project)));
+        XsoliaApp.initMotion();
+      } catch (err) {
+        dailyPicksErrorEl.textContent = err.message || 'Failed to load daily picks.';
+        dailyPicksErrorEl.classList.remove('hidden');
+      }
+    }
+
+    function createDailyPickCard(project) {
+      const card = document.createElement('article');
+      card.className = 'x-card motion-reveal';
+      const title = document.createElement('h3');
+      title.style.fontWeight = '800';
+      title.style.color = 'var(--ink-strong)';
+      title.textContent = project.title;
+      const meta = document.createElement('p');
+      meta.style.fontSize = '0.78rem';
+      meta.style.color = '#6b7280';
+      meta.textContent = `${project.main_category || 'topic'} · ${project.questions ? project.questions.length : 0} question${project.questions && project.questions.length === 1 ? '' : 's'}`;
+      const desc = document.createElement('p');
+      desc.style.fontSize = '0.84rem';
+      desc.style.color = '#4b5563';
+      desc.textContent = project.description || '';
+      const link = document.createElement('a');
+      link.href = `answer.html?project_id=${project.id}`;
+      link.className = 'x-btn-primary';
+      link.style.fontSize = '0.78rem';
+      link.style.marginTop = '0.65rem';
+      link.textContent = 'Answer pick';
+      card.appendChild(title);
+      card.appendChild(meta);
+      card.appendChild(desc);
+      card.appendChild(link);
+      return card;
+    }
+
+    notificationsBtn.addEventListener('click', () => {
+      notificationsPanel.classList.toggle('hidden');
+    });
+
+    async function loadNotifications() {
+      notificationsList.innerHTML = '';
+      notificationsEmpty.classList.add('hidden');
+      try {
+        const { response, data } = await XsoliaApp.apiFetch('/me/notifications?unread_only=true&limit=5&offset=0', { auth: true });
+        if (!response.ok) return;
+        const items = Array.isArray(data) ? data : [];
+        notificationDot.classList.toggle('hidden', items.length === 0);
+        if (!items.length) {
+          notificationsEmpty.classList.remove('hidden');
+          return;
+        }
+        items.forEach((item) => notificationsList.appendChild(createNotificationItem(item)));
+      } catch (_err) {
+        notificationsEmpty.textContent = 'Notifications unavailable.';
+        notificationsEmpty.classList.remove('hidden');
+      }
+    }
+
+    function createNotificationItem(item) {
+      const payload = item.payload || {};
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'x-card';
+      row.style.textAlign = 'left';
+      row.style.width = '100%';
+      row.style.fontSize = '0.86rem';
+      row.textContent = `${payload.project_title || 'A project'} launched · You gave it ${payload.your_interest || '–'}/5 · Good call.`;
+      row.addEventListener('click', async () => {
+        await XsoliaApp.apiFetch(`/me/notifications/${item.id}/read`, { method: 'POST', auth: true });
+        row.remove();
+        loadNotifications();
+      });
+      return row;
+    }
+
+    async function loadResponseHistory() {
+      responseHistoryEl.innerHTML = '';
+      historyEmptyEl.classList.add('hidden');
+      historyErrorEl.classList.add('hidden');
+
+      try {
+        const { response, data } = await XsoliaApp.apiFetch('/me/responses?limit=50&offset=0', { auth: true });
+        if (!response.ok) throw new Error(XsoliaApp.formatApiError(data, 'Failed to load response history.'));
+
+        const responses = Array.isArray(data) ? data : [];
+        if (!responses.length) {
+          historyEmptyEl.classList.remove('hidden');
+          return;
+        }
+
+        responses.forEach((item) => responseHistoryEl.appendChild(createResponseHistoryCard(item)));
+        XsoliaApp.initMotion();
+      } catch (err) {
+        historyErrorEl.textContent = err.message || 'Failed to load response history.';
+        historyErrorEl.classList.remove('hidden');
+      }
+    }
+
+    function createResponseHistoryCard(item) {
+      const card = document.createElement('article');
+      card.className = 'x-card motion-reveal';
+
+      const top = document.createElement('div');
+      top.className = 'flex flex-wrap items-center justify-between gap-2';
+
+      const title = document.createElement('div');
+      title.style.fontWeight = '800';
+      title.style.color = 'var(--ink-strong)';
+      title.textContent = item.project_title || `Project #${item.project_id}`;
+
+      const meta = document.createElement('span');
+      meta.className = 'x-badge';
+      meta.textContent = item.accepted_by_creator ? 'Accepted' : 'Submitted';
+
+      top.appendChild(title);
+      top.appendChild(meta);
+
+      const details = document.createElement('p');
+      details.style.fontSize = '0.84rem';
+      details.style.color = '#6b7280';
+      const created = item.created_at ? new Date(item.created_at).toLocaleDateString() : '';
+      let priceText = 'Price not specified';
+      if (item.price_min != null && item.price_max != null) priceText = `$${item.price_min} - $${item.price_max}`;
+      details.textContent = `Interest ${item.interest_level}/5 · ${priceText}${created ? ` · ${created}` : ''}`;
+
+      const answerPreview = document.createElement('p');
+      answerPreview.style.fontSize = '0.86rem';
+      answerPreview.style.color = '#4b5563';
+      answerPreview.style.marginTop = '0.45rem';
+      answerPreview.textContent = (item.answers || []).find(Boolean) || 'No written answer preview.';
+
+      const actions = document.createElement('div');
+      actions.className = 'flex flex-wrap gap-2';
+      actions.style.marginTop = '0.65rem';
+
+      const projectLink = document.createElement('a');
+      projectLink.href = `answer.html?project_id=${item.project_id}`;
+      projectLink.className = 'x-btn-secondary';
+      projectLink.style.fontSize = '0.78rem';
+      projectLink.textContent = 'Open project';
+
+      const commentsBtn = document.createElement('button');
+      commentsBtn.type = 'button';
+      commentsBtn.className = 'x-btn-secondary';
+      commentsBtn.style.fontSize = '0.78rem';
+      commentsBtn.textContent = 'Creator notes';
+
+      const commentsBox = document.createElement('div');
+      commentsBox.className = 'hidden';
+      commentsBox.style.marginTop = '0.65rem';
+      commentsBox.style.fontSize = '0.84rem';
+      commentsBox.style.color = '#6b7280';
+
+      commentsBtn.addEventListener('click', () => loadComments(item.id, commentsBox));
+
+      actions.appendChild(projectLink);
+      actions.appendChild(commentsBtn);
+
+      card.appendChild(top);
+      card.appendChild(details);
+      card.appendChild(answerPreview);
+      card.appendChild(actions);
+      card.appendChild(commentsBox);
+      return card;
+    }
+
+    async function loadComments(responseId, commentsBox) {
+      commentsBox.classList.toggle('hidden');
+      if (commentsBox.dataset.loaded === 'true' || commentsBox.classList.contains('hidden')) return;
+
+      commentsBox.textContent = 'Loading notes...';
+      try {
+        const { response, data } = await XsoliaApp.apiFetch(`/responses/${responseId}/comments?limit=50&offset=0`, { auth: true });
+        if (!response.ok) throw new Error(XsoliaApp.formatApiError(data, 'Failed to load notes.'));
+        const comments = Array.isArray(data) ? data : [];
+        commentsBox.dataset.loaded = 'true';
+        commentsBox.innerHTML = comments.length
+          ? comments.map((comment) => {
+            const by = escapeHtml(comment.author_name || `User #${comment.author_id}`);
+            const created = comment.created_at ? new Date(comment.created_at).toLocaleDateString() : '';
+            return `<div style="border-left:2px solid rgba(215,98,53,0.35);padding-left:0.6rem;margin-bottom:0.45rem;"><div style="color:#374151;font-size:0.74rem;margin-bottom:0.15rem;">${by}${created ? ` · ${escapeHtml(created)}` : ''}</div><div>${escapeHtml(comment.text)}</div></div>`;
+          }).join('')
+          : 'No creator notes yet.';
+      } catch (err) {
+        commentsBox.textContent = err.message || 'Failed to load notes.';
+      }
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
     }
   </script>
 </body>

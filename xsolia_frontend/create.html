@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Create Validation Topic · xsolia.com</title>
+  <title>Create Validation Topic · Krotka.ai by xSolia</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="css/theme.css">
+  <link rel="stylesheet" href="css/theme.css?v=20260424-gsap">
 </head>
 
 <body class="min-h-screen flex flex-col">
@@ -31,7 +31,7 @@
             k
           </div>
           <div>
-            <div class="site-logo-text">xsolia.com</div>
+            <div class="site-logo-text">Krotka.ai by xSolia</div>
             <div class="site-subtitle">Early validation playground</div>
           </div>
         </a>
@@ -99,47 +99,51 @@
   </div>
 
   <!-- Main -->
-  <main class="flex-1 container" style="padding-top:1.5rem; padding-bottom:2rem;">
-    <section class="section" style="max-width:640px;">
-      <div class="x-card">
+  <main class="flex-1 container form-shell" style="padding-top:1.5rem; padding-bottom:2rem;">
+    <section class="section" style="width:100%; max-width:680px;">
+      <div class="x-card form-panel motion-reveal">
         <h1 style="font-size:1.4rem; font-weight:600; margin-bottom:0.4rem;">Create validation topic</h1>
         <p style="font-size:0.9rem; color:#6b7280; margin-bottom:1rem;">
           Describe your idea and ask a handful of focused questions to understand your market. New creators can publish one free topic before upgrading.
         </p>
+        <p id="sourceHint" class="hidden" style="font-size:0.82rem; color:#6b7280; margin-bottom:1rem;"></p>
 
-        <form id="projectForm" class="space-y-4">
+	        <form id="projectForm" class="space-y-4" novalidate>
           <div>
             <label style="font-size:0.85rem; color:#6b7280;">Topic title</label>
-            <input
-              id="title"
-              type="text"
-              required
-              class="x-input"
-              placeholder="e.g. A lightweight validation tool for indie developers"
-            />
-          </div>
+              <input
+                id="title"
+                type="text"
+                required
+                class="x-input"
+                placeholder="e.g. A lightweight validation tool for indie developers"
+              />
+              <span id="err-title" style="display:none; font-size:0.75rem; color:#f97373;"></span>
+            </div>
 
           <div>
             <label style="font-size:0.85rem; color:#6b7280;">Description</label>
-            <textarea
-              id="description"
-              required
-              rows="3"
-              class="x-textarea"
-              placeholder="Briefly describe your idea and what you want to learn from testers."
-            ></textarea>
-          </div>
+              <textarea
+                id="description"
+                required
+                rows="3"
+                class="x-textarea"
+                placeholder="Briefly describe your idea and what you want to learn from testers."
+              ></textarea>
+              <span id="err-description" style="display:none; font-size:0.75rem; color:#f97373;"></span>
+            </div>
 
           <div>
             <label style="font-size:0.85rem; color:#6b7280;">Target audience</label>
-            <textarea
-              id="target"
-              required
-              rows="2"
-              class="x-textarea"
-              placeholder="e.g. Indie developers, early-stage entrepreneurs, commuting cyclists"
-            ></textarea>
-          </div>
+              <textarea
+                id="target"
+                required
+                rows="2"
+                class="x-textarea"
+                placeholder="e.g. Indie developers, early-stage entrepreneurs, commuting cyclists"
+              ></textarea>
+              <span id="err-target" style="display:none; font-size:0.75rem; color:#f97373;"></span>
+            </div>
 
           <div>
             <label style="font-size:0.85rem; color:#6b7280;">Testing category</label>
@@ -152,21 +156,23 @@
             >
               <option value="">Choose a main category (optional)</option>
               <option value="digital">Digital products</option>
-              <option value="physical">Physical products</option>
-              <option value="service">Services & experiences</option>
-              <option value="education">Education & creators</option>
-              <option value="health">Health & wellbeing</option>
-            </select>
+                <option value="physical">Physical products</option>
+                <option value="service">Services & experiences</option>
+                <option value="education">Education & creators</option>
+                <option value="health">Health & wellbeing</option>
+              </select>
+              <span id="err-category" style="display:none; font-size:0.75rem; color:#f97373;"></span>
 
-            <!-- Subcategory depends on main category -->
-            <select
+              <!-- Subcategory depends on main category -->
+              <select
               id="subcategory"
               class="x-input"
               style="margin-top:0.5rem; max-width:320px;"
               disabled
             >
-              <option value="">Select a main category first</option>
-            </select>
+                <option value="">Select a main category first</option>
+              </select>
+              <span id="err-subcategory" style="display:none; font-size:0.75rem; color:#f97373;"></span>
 
             <p style="font-size:0.75rem; color:#9ca3af; margin-top:0.25rem;">
               This helps testers quickly find topics that match what they care about. You can skip this if you are not sure yet.
@@ -188,7 +194,7 @@
             <p style="font-size:0.75rem; color:#9ca3af; margin-bottom:0.4rem;">
               For example: “How do you currently solve this problem?” or “What price would feel reasonable to you?”
             </p>
-            <div id="questionsWrap" class="space-y-2">
+              <div id="questionsWrap" class="space-y-2">
               <div class="question-row" style="display:flex; align-items:center; gap:0.5rem;">
                 <input
                   type="text"
@@ -204,33 +210,81 @@
                 >
                   ✕
                 </button>
+                </div>
               </div>
+              <span id="err-questions" style="display:none; font-size:0.75rem; color:#f97373;"></span>
             </div>
-          </div>
 
           <div>
             <label style="font-size:0.85rem; color:#6b7280;">Participation reward (optional)</label>
-            <textarea
-              id="reward"
-              rows="2"
-              class="x-textarea"
-              placeholder="e.g. Early access invite, 50% discount after launch, or a small gift."
-            ></textarea>
+              <textarea
+                id="reward"
+                rows="2"
+                class="x-textarea"
+                placeholder="e.g. Early access invite, 50% discount after launch, or a small gift."
+              ></textarea>
+              <span id="err-reward" style="display:none; font-size:0.75rem; color:#f97373;"></span>
+            </div>
+
+          <div>
+            <label style="font-size:0.85rem; color:#6b7280;">Validation image URLs (optional, up to 3)</label>
+            <div id="imageUrlWrap" style="display:grid; gap:0.45rem; margin-top:0.25rem;">
+              <input id="imageUrl0" type="url" class="x-input image-url-input" placeholder="https://..." />
+            </div>
+            <div style="display:flex; gap:0.5rem; margin-top:0.45rem;">
+              <button id="addImageUrlBtn" type="button" class="x-btn-secondary" style="font-size:0.78rem;">Add image URL</button>
+              <button id="removeImageUrlBtn" type="button" class="x-btn-secondary" style="font-size:0.78rem;">Remove last</button>
+            </div>
+            <p style="font-size:0.75rem; color:#9ca3af; margin-top:0.25rem;">
+              Use public `https://` image links. Database storage of base64 image blobs is disabled.
+            </p>
+            <div id="topicImagePreview" style="display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:0.45rem; margin-top:0.5rem;"></div>
+            <span id="err-images" style="display:none; font-size:0.75rem; color:#f97373;"></span>
           </div>
 
           <div>
             <label style="font-size:0.85rem; color:#6b7280;">Budget for this validation (USD, optional)</label>
             <input
-              id="budget"
-              type="number"
-              min="0"
-              class="x-input"
-              style="max-width:160px; margin-top:0.25rem;"
-              placeholder="e.g. 50"
-            />
-            <p style="font-size:0.75rem; color:#9ca3af; margin-top:0.25rem;">
+                id="budget"
+                type="number"
+                min="0"
+                class="x-input"
+                style="max-width:160px; margin-top:0.25rem;"
+                placeholder="e.g. 50"
+              />
+              <span id="err-budget" style="display:none; font-size:0.75rem; color:#f97373;"></span>
+              <p style="font-size:0.75rem; color:#9ca3af; margin-top:0.25rem;">
               This is shown to testers for context. Leave it blank if you are not sure yet.
             </p>
+          </div>
+
+          <div class="x-card" style="padding:0.9rem; background:rgba(255,255,255,0.56);">
+            <h3 style="font-size:0.92rem; font-weight:700; margin:0 0 0.5rem;">Visibility & Privacy</h3>
+            <div style="display:grid; gap:0.75rem;">
+              <div>
+                <label for="visibility" style="font-size:0.82rem; color:#6b7280;">Project visibility</label>
+                <select id="visibility" class="x-input" style="margin-top:0.25rem;">
+                  <option value="public">Public — anyone can browse this validation topic</option>
+                  <option value="tester_only">Tester-only — only logged-in testers can view and answer</option>
+                  <option value="invite_only" disabled>Invite-only — hidden from explore; invitation support coming soon.</option>
+                  <option value="private_link">Private link — hidden from explore, accessible by direct link</option>
+                </select>
+                <span id="err-visibility" style="display:none; font-size:0.75rem; color:#f97373;"></span>
+              </div>
+              <div>
+                <label for="detailLevel" style="font-size:0.82rem; color:#6b7280;">Detail level</label>
+                <select id="detailLevel" class="x-input" style="margin-top:0.25rem;">
+                  <option value="problem_only">Problem only — hide the solution details</option>
+                  <option value="concept_summary" selected>Concept summary — show a short concept summary</option>
+                  <option value="full_description">Full description — show full detail</option>
+                </select>
+                <span id="err-detailLevel" style="display:none; font-size:0.75rem; color:#f97373;"></span>
+              </div>
+              <label style="display:flex; align-items:center; gap:0.45rem; font-size:0.82rem; color:#6b7280;">
+                <input id="allowIndexing" type="checkbox" />
+                Allow search indexing
+              </label>
+            </div>
           </div>
 
           <button
@@ -248,11 +302,11 @@
     </section>
   </main>
 
-  <footer style="text-align:center; padding:1.5rem 0; font-size:0.75rem; color:#9ca3af;">
-    © 2025 xsolia.com
+  <footer style="text-align:center; padding:1.5rem 0; font-size:0.75rem; color:var(--ink-faint);">
+    © 2026 Krotka.ai by xSolia
   </footer>
 
-  <script src="js/app.js"></script>
+  <script src="js/app.js?v=20260424-gsap"></script>
   <script src="js/logo.js"></script>
   <script src="js/nav.js"></script>
   <script>
@@ -415,62 +469,370 @@
           btn.style.color = '';
           btn.style.cursor = 'pointer';
         }
-      });
-    }
-    refreshDeleteButtons();
+        });
+      }
+      refreshDeleteButtons();
 
-    // Submit project
-    document.getElementById('projectForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const title = document.getElementById('title').value.trim();
-      const description = document.getElementById('description').value.trim();
-      const target = document.getElementById('target').value.trim();
-      const mainCategory = (document.getElementById('category')?.value || '').trim();
-      const subcategory = (document.getElementById('subcategory')?.value || '').trim();
-      const reward = document.getElementById('reward').value.trim();
-      const budgetStr = document.getElementById('budget').value.trim();
-      const qInputs = document.querySelectorAll('.question-input');
-      const questions = [];
-      qInputs.forEach((inp) => {
-        const v = inp.value.trim();
-        if (v) questions.push(v);
-      });
-      if (questions.length === 0) {
-        alert('Please enter at least one question.');
-        return;
+      const imageUrlWrap = document.getElementById('imageUrlWrap');
+      const addImageUrlBtn = document.getElementById('addImageUrlBtn');
+      const removeImageUrlBtn = document.getElementById('removeImageUrlBtn');
+      const imagePreview = document.getElementById('topicImagePreview');
+
+      function setImageError(message) {
+        const errorNode = document.getElementById('err-images');
+        if (!errorNode) return;
+        errorNode.textContent = message || '';
+        errorNode.style.display = message ? 'block' : 'none';
       }
 
-      const payload = {
-        title,
-        description,
-        target_audience: target,
-        questions,
-        reward_note: reward || null,
-        budget: Number(budgetStr) || 0,
-        main_category: mainCategory || 'testing',
-        subcategory: subcategory || null,
+      function getImageUrlInputs() {
+        return Array.from(document.querySelectorAll('.image-url-input'));
+      }
+
+      function collectImageUrls() {
+        return getImageUrlInputs()
+          .map((input) => (input.value || '').trim())
+          .filter(Boolean);
+      }
+
+      function syncImageUrlButtons() {
+        const count = getImageUrlInputs().length;
+        if (addImageUrlBtn) addImageUrlBtn.disabled = count >= 3;
+        if (removeImageUrlBtn) removeImageUrlBtn.disabled = count <= 1;
+      }
+
+      function renderImagePreview() {
+        if (!imagePreview) return;
+        const imageUrls = collectImageUrls();
+        imagePreview.innerHTML = '';
+        imageUrls.forEach((url, index) => {
+          const item = document.createElement('div');
+          item.style.position = 'relative';
+          item.style.border = '1px solid rgba(42,39,34,0.16)';
+          item.style.borderRadius = '10px';
+          item.style.overflow = 'hidden';
+          item.style.background = 'rgba(255,255,255,0.68)';
+          item.style.minHeight = '88px';
+
+          const image = document.createElement('img');
+          image.src = url;
+          image.alt = `Validation image ${index + 1}`;
+          image.style.width = '100%';
+          image.style.height = '88px';
+          image.style.objectFit = 'cover';
+          image.style.display = 'block';
+          image.onerror = () => {
+            image.style.display = 'none';
+            item.style.padding = '0.5rem';
+            item.style.fontSize = '0.76rem';
+            item.style.color = '#9ca3af';
+            item.textContent = 'Preview unavailable';
+          };
+
+          item.appendChild(image);
+          imagePreview.appendChild(item);
+        });
+      }
+
+      function addImageUrlField(initialValue = '') {
+        if (!imageUrlWrap) return;
+        const count = getImageUrlInputs().length;
+        if (count >= 3) return;
+
+        const input = document.createElement('input');
+        input.type = 'url';
+        input.className = 'x-input image-url-input';
+        input.placeholder = 'https://...';
+        input.value = initialValue;
+        input.addEventListener('input', () => {
+          setImageError('');
+          renderImagePreview();
+        });
+        imageUrlWrap.appendChild(input);
+        syncImageUrlButtons();
+        renderImagePreview();
+      }
+
+      function removeLastImageUrlField() {
+        if (!imageUrlWrap) return;
+        const inputs = getImageUrlInputs();
+        if (inputs.length <= 1) return;
+        const last = inputs[inputs.length - 1];
+        last.remove();
+        syncImageUrlButtons();
+        renderImagePreview();
+      }
+
+      function initImageUrlInputs() {
+        const initialInputs = getImageUrlInputs();
+        initialInputs.forEach((input) => {
+          input.addEventListener('input', () => {
+            setImageError('');
+            renderImagePreview();
+          });
+        });
+        syncImageUrlButtons();
+        renderImagePreview();
+      }
+
+      if (addImageUrlBtn) {
+        addImageUrlBtn.addEventListener('click', () => addImageUrlField());
+      }
+      if (removeImageUrlBtn) {
+        removeImageUrlBtn.addEventListener('click', removeLastImageUrlField);
+      }
+      initImageUrlInputs();
+
+      let sourceInnovationId = null;
+
+      async function prefillFromInnovation() {
+        const params = new URLSearchParams(window.location.search);
+        const sourceId = params.get('from_innovation') || params.get('innovation_id');
+        if (!sourceId) return;
+
+        const sourceHint = document.getElementById('sourceHint');
+        try {
+          const { response, data } = await XsoliaApp.apiFetch(`/innovations/${sourceId}/validation-draft`, {
+            auth: true,
+          });
+          if (!response.ok) {
+            throw new Error(XsoliaApp.formatApiError(data, 'Failed to load source innovation.'));
+          }
+
+          document.getElementById('title').value = data.title || '';
+          document.getElementById('description').value = data.description || '';
+          document.getElementById('target').value = data.target_audience || '';
+
+          const draftQuestions = Array.isArray(data.questions) && data.questions.length
+            ? data.questions
+            : [];
+          while (document.querySelectorAll('.question-input').length < draftQuestions.length) {
+            document.getElementById('addQuestionBtn').click();
+          }
+          while (document.querySelectorAll('.question-input').length > Math.max(draftQuestions.length, 1)) {
+            const rows = document.querySelectorAll('#questionsWrap .question-row');
+            if (rows.length <= 1) break;
+            rows[rows.length - 1].remove();
+          }
+          document.querySelectorAll('.question-input').forEach((input, index) => {
+            input.value = draftQuestions[index] || '';
+          });
+          refreshDeleteButtons();
+
+          const category = (data.main_category || '').trim();
+          if (category) {
+            const categorySelectNode = document.getElementById('category');
+            const hasOption = Array.from(categorySelectNode.options).some((option) => option.value === category);
+            if (hasOption) {
+              categorySelectNode.value = category;
+              categorySelectNode.dispatchEvent(new Event('change'));
+            }
+          }
+          sourceInnovationId = Number(data.source_innovation_id || sourceId);
+          sourceHint.textContent = 'This validation topic was created from an Innovation Pool idea.';
+          sourceHint.classList.remove('hidden');
+        } catch (err) {
+          sourceHint.textContent = err.message || 'Could not prefill from the source innovation.';
+          sourceHint.classList.remove('hidden');
+        }
+      }
+      prefillFromInnovation();
+
+      const PROJECT_FIELD_MAP = {
+        title: 'title',
+        description: 'description',
+        target: 'target_audience',
+        category: 'main_category',
+        subcategory: 'subcategory',
+        reward: 'reward_note',
+        budget: 'budget',
+        visibility: 'visibility',
+        detailLevel: 'detail_level',
       };
 
-      const { response, data } = await XsoliaApp.apiFetch('/projects', {
-        method: 'POST',
-        auth: true,
-        body: payload
-      });
-      const errorEl = document.getElementById('error');
-      const successEl = document.getElementById('success');
-      errorEl.style.display = 'none';
-      successEl.style.display = 'none';
-      if (!response.ok) {
-        errorEl.textContent = data.detail || 'Publishing failed, please try again.';
-        errorEl.style.display = 'block';
-      } else {
-        successEl.textContent = 'Topic published successfully! Redirecting to your dashboard...';
-        successEl.style.display = 'block';
-        setTimeout(() => {
-          window.location.href = 'creator-dashboard.html';
-        }, 3000);
+      function clearProjectFormErrors() {
+        document.querySelectorAll('[id^="err-"]').forEach((el) => {
+          el.textContent = '';
+          el.style.display = 'none';
+        });
+        ['title', 'description', 'target', 'category', 'subcategory', 'reward', 'budget', 'visibility', 'detailLevel'].forEach((id) => {
+          const input = document.getElementById(id);
+          if (input) input.style.outline = '';
+        });
+        const imageInputs = document.querySelectorAll('.image-url-input');
+        imageInputs.forEach((node) => {
+          node.style.outline = '';
+        });
+        const imageErrorNode = document.getElementById('err-images');
+        if (imageErrorNode) {
+          imageErrorNode.textContent = '';
+          imageErrorNode.style.display = 'none';
+        }
+        document.getElementById('questionsWrap').style.outline = '';
       }
-    });
+
+      function applyProjectFieldErrors(fieldErrors) {
+        Object.entries(PROJECT_FIELD_MAP).forEach(([elementId, fieldKey]) => {
+          const message = fieldErrors[fieldKey] || '';
+          const errorNode = document.getElementById(`err-${elementId}`);
+          const input = document.getElementById(elementId);
+
+          if (errorNode) {
+            errorNode.textContent = message;
+            errorNode.style.display = message ? 'block' : 'none';
+          }
+          if (input) {
+            input.style.outline = message ? '1.5px solid #f97373' : '';
+          }
+        });
+
+        const questionsError = fieldErrors.questions || '';
+        const questionsNode = document.getElementById('err-questions');
+        if (questionsNode) {
+          questionsNode.textContent = questionsError;
+          questionsNode.style.display = questionsError ? 'block' : 'none';
+        }
+        document.getElementById('questionsWrap').style.outline = questionsError ? '1.5px solid #f97373' : '';
+
+        const imageError = fieldErrors.image_urls || '';
+        const imageNode = document.getElementById('err-images');
+        if (imageNode) {
+          imageNode.textContent = imageError;
+          imageNode.style.display = imageError ? 'block' : 'none';
+        }
+        document.querySelectorAll('.image-url-input').forEach((node) => {
+          node.style.outline = imageError ? '1.5px solid #f97373' : '';
+        });
+      }
+
+	    // Submit project
+	    document.getElementById('projectForm').addEventListener('submit', async (e) => {
+	      e.preventDefault();
+
+	      const errorEl = document.getElementById('error');
+	      const successEl = document.getElementById('success');
+	      const submitButton = e.submitter || document.querySelector('#projectForm button[type="submit"]');
+	      const originalButtonText = submitButton ? submitButton.textContent : '';
+	      let publishSucceeded = false;
+
+	      errorEl.style.display = 'none';
+	      successEl.style.display = 'none';
+	      clearProjectFormErrors();
+
+	      const title = document.getElementById('title').value.trim();
+	      const description = document.getElementById('description').value.trim();
+		      const target = document.getElementById('target').value.trim();
+		      const mainCategory = (document.getElementById('category')?.value || '').trim();
+		      const subcategory = (document.getElementById('subcategory')?.value || '').trim();
+          const visibility = (document.getElementById('visibility')?.value || 'public').trim();
+          const detailLevel = (document.getElementById('detailLevel')?.value || 'concept_summary').trim();
+          const allowIndexing = Boolean(document.getElementById('allowIndexing')?.checked);
+		      const reward = document.getElementById('reward').value.trim();
+		      const budgetStr = document.getElementById('budget').value.trim();
+	      const imageUrls = collectImageUrls();
+	      const qInputs = document.querySelectorAll('.question-input');
+	      const questions = [];
+	      qInputs.forEach((inp) => {
+	        const v = inp.value.trim();
+	        if (v) questions.push(v);
+	      });
+	      const clientErrors = {};
+	      if (!title) clientErrors.title = 'Title is required.';
+	      else if (title.length < 3) clientErrors.title = 'Title is too short.';
+	      else if (title.length > 160) clientErrors.title = 'Title is too long.';
+	      if (!description) clientErrors.description = 'Description is required.';
+	      else if (description.length < 10) clientErrors.description = 'Description is too short.';
+	      else if (description.length > 4000) clientErrors.description = 'Description is too long.';
+	      if (!target) clientErrors.target_audience = 'Target audience is required.';
+	      else if (target.length < 3) clientErrors.target_audience = 'Target audience is too short.';
+	      else if (target.length > 500) clientErrors.target_audience = 'Target audience is too long.';
+	      if (questions.length === 0) clientErrors.questions = 'Please enter at least one question.';
+	      else if (questions.length > 8) clientErrors.questions = 'Please enter no more than 8 questions.';
+	      else if (questions.some((question) => question.length > 500)) clientErrors.questions = 'Each question must be 500 characters or fewer.';
+	      if (imageUrls.length > 3) clientErrors.image_urls = 'Please provide no more than 3 image URLs.';
+	      else if (imageUrls.some((url) => !(url.startsWith('https://') || url.startsWith('http://')))) {
+	        clientErrors.image_urls = 'Image URLs must start with http:// or https://.';
+	      }
+	      else if (imageUrls.some((url) => url.length > 2048)) {
+	        clientErrors.image_urls = 'Each image URL must be 2048 characters or fewer.';
+	      }
+		      if (reward.length > 500) clientErrors.reward_note = 'Reward note is too long.';
+          if (!['public', 'tester_only', 'invite_only', 'private_link'].includes(visibility)) {
+            clientErrors.visibility = 'Please select a valid visibility mode.';
+          }
+          if (!['problem_only', 'concept_summary', 'full_description'].includes(detailLevel)) {
+            clientErrors.detail_level = 'Please select a valid detail level.';
+          }
+		      if (budgetStr) {
+	        const budgetValue = Number(budgetStr);
+	        if (Number.isNaN(budgetValue)) clientErrors.budget = 'Budget must be a number.';
+	        else if (budgetValue < 0) clientErrors.budget = 'Budget cannot be negative.';
+	        else if (budgetValue > 1000000000) clientErrors.budget = 'Budget is too high.';
+	      }
+
+	      if (Object.keys(clientErrors).length > 0) {
+	        applyProjectFieldErrors(clientErrors);
+	        errorEl.textContent = 'Please fix the errors above.';
+	        errorEl.style.display = 'block';
+	        return;
+	      }
+
+		      const payload = {
+		        title,
+		        description,
+		        target_audience: target,
+		        questions,
+		        image_urls: imageUrls,
+		        reward_note: reward || null,
+		        budget: Number(budgetStr) || 0,
+		        main_category: mainCategory || 'testing',
+		        subcategory: subcategory || null,
+            visibility,
+            detail_level: detailLevel,
+            allow_indexing: allowIndexing,
+		      };
+          if (Number.isFinite(sourceInnovationId) && sourceInnovationId > 0) {
+            payload.source_innovation_id = sourceInnovationId;
+          }
+
+	      if (submitButton) {
+	        submitButton.disabled = true;
+	        submitButton.textContent = 'Publishing...';
+	      }
+
+	      try {
+	        const { response, data } = await XsoliaApp.apiFetch('/projects', {
+	          method: 'POST',
+	          auth: true,
+	          body: payload
+	        });
+
+		        if (!response.ok) {
+		          errorEl.textContent = XsoliaApp.formatApiError(data, 'Publishing failed, please try again.');
+		          errorEl.style.display = 'block';
+		          applyProjectFieldErrors(XsoliaApp.getFieldErrors(data));
+		          return;
+		        }
+
+	        clearProjectFormErrors();
+	        successEl.textContent = 'Topic published successfully! Redirecting to your dashboard...';
+	        successEl.style.display = 'block';
+	        publishSucceeded = true;
+	        setTimeout(() => {
+	          window.location.href = 'creator-dashboard.html';
+	        }, 3000);
+	      } catch (err) {
+	        errorEl.textContent = err && err.message
+	          ? `Network error: ${err.message}`
+	          : 'Network error: unable to reach the API. Please try again.';
+	        errorEl.style.display = 'block';
+	      } finally {
+	        if (submitButton && !publishSucceeded) {
+	          submitButton.disabled = false;
+	          submitButton.textContent = originalButtonText || 'Publish validation topic';
+	        }
+	      }
+	    });
   </script>
 </body>
 </html>

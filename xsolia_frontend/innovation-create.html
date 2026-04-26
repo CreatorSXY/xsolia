@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Post an innovation · xsolia.com</title>
+  <title>Post an innovation · Krotka.ai by xSolia</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="css/theme.css" />
+  <link rel="stylesheet" href="css/theme.css?v=20260424-gsap" />
 </head>
 
 <body class="min-h-screen flex flex-col">
@@ -31,7 +31,7 @@
             k
           </div>
           <div>
-            <div class="site-logo-text">xsolia.com</div>
+            <div class="site-logo-text">Krotka.ai by xSolia</div>
             <div class="site-subtitle">Early validation playground</div>
           </div>
         </a>
@@ -99,9 +99,9 @@
   </div>
 
   <!-- Main -->
-  <main class="flex-1 container" style="padding-top:1.5rem; padding-bottom:2rem;">
-    <section class="section" style="max-width:640px; margin:0 auto;">
-      <div class="x-card">
+  <main class="flex-1 container form-shell" style="padding-top:1.5rem; padding-bottom:2rem;">
+    <section class="section" style="width:100%; max-width:680px; margin:0 auto;">
+      <div class="x-card form-panel motion-reveal">
         <p style="font-size:0.75rem; color:#9ca3af; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:0.25rem;">
           Innovation zone
         </p>
@@ -111,7 +111,7 @@
           can browse this pool and decide what to explore.
         </p>
 
-        <form id="innovationForm" class="space-y-4">
+        <form id="innovationForm" class="space-y-4" novalidate>
           <div>
             <label style="font-size:0.85rem; color:#374151;">Title</label>
             <input
@@ -121,6 +121,7 @@
               required
               placeholder="e.g. A shared notebook for indie founders to swap experiments"
             />
+            <span id="err-title" style="display:none; font-size:0.75rem; color:#f97373;"></span>
           </div>
 
           <div>
@@ -132,6 +133,7 @@
               required
               placeholder="Explain the problem, your rough idea, and why it might be interesting. It doesn’t need to be perfect."
             ></textarea>
+            <span id="err-description" style="display:none; font-size:0.75rem; color:#f97373;"></span>
           </div>
 
           <div>
@@ -145,6 +147,7 @@
             <p style="font-size:0.75rem; color:#9ca3af; margin-top:0.25rem;">
               Separate tags with commas. We’ll use them to group similar ideas.
             </p>
+            <span id="err-tags" style="display:none; font-size:0.75rem; color:#f97373;"></span>
           </div>
 
           <div>
@@ -154,6 +157,7 @@
               <option value="looking_for_team">I’d love to find people to explore this with</option>
               <option value="just_idea">I probably won’t build it, feel free to steal</option>
             </select>
+            <span id="err-intent" style="display:none; font-size:0.75rem; color:#f97373;"></span>
           </div>
 
           <button
@@ -171,17 +175,48 @@
     </section>
   </main>
 
-  <footer style="text-align:center; padding:1.5rem 0; font-size:0.75rem; color:#9ca3af;">
-    © 2025 xsolia.com
+  <footer style="text-align:center; padding:1.5rem 0; font-size:0.75rem; color:var(--ink-faint);">
+    © 2026 Krotka.ai by xSolia
   </footer>
 
-  <script src="js/app.js"></script>
+  <script src="js/app.js?v=20260424-gsap"></script>
   <script src="js/logo.js"></script>
   <script src="js/nav.js"></script>
   <script>
     const session = XsoliaApp.requireAuth({ redirect: "login.html" });
     if (!session) {
       throw new Error("Authentication required");
+    }
+
+    const INNOVATION_FIELD_MAP = {
+      title: "title",
+      description: "description",
+      tags: "tags",
+      intent: "intent",
+    };
+
+    function clearInnovationErrors() {
+      document.querySelectorAll('[id^="err-"]').forEach((el) => {
+        el.textContent = "";
+        el.style.display = "none";
+      });
+      Object.keys(INNOVATION_FIELD_MAP).forEach((id) => {
+        const input = document.getElementById(id);
+        if (input) input.style.outline = "";
+      });
+    }
+
+    function applyInnovationFieldErrors(fieldErrors) {
+      Object.entries(INNOVATION_FIELD_MAP).forEach(([elementId, fieldKey]) => {
+        const message = fieldErrors[fieldKey] || "";
+        const errorNode = document.getElementById(`err-${elementId}`);
+        const input = document.getElementById(elementId);
+        if (errorNode) {
+          errorNode.textContent = message;
+          errorNode.style.display = message ? "block" : "none";
+        }
+        if (input) input.style.outline = message ? "1.5px solid #f97373" : "";
+      });
     }
 
     document.getElementById("innovationForm").addEventListener("submit", async (e) => {
@@ -196,19 +231,32 @@
       const successEl = document.getElementById("success");
       errorEl.style.display = "none";
       successEl.style.display = "none";
-
-      if (!title || !description) {
-        errorEl.textContent = "Title and description are required.";
-        errorEl.style.display = "block";
-        return;
-      }
+      clearInnovationErrors();
 
       const tags = tagsRaw
         ? tagsRaw
             .split(",")
-            .map((t) => t.trim())
+            .map((t) => t.trim().toLowerCase())
             .filter((t) => t.length > 0)
         : undefined;
+
+      const clientErrors = {};
+      if (!title) clientErrors.title = "Title is required.";
+      else if (title.length < 3) clientErrors.title = "Title is too short.";
+      else if (title.length > 160) clientErrors.title = "Title is too long.";
+      if (!description) clientErrors.description = "Description is required.";
+      else if (description.length < 10) clientErrors.description = "Description is too short.";
+      else if (description.length > 4000) clientErrors.description = "Description is too long.";
+      if (tags && tags.length > 10) clientErrors.tags = "Use 10 tags or fewer.";
+      else if (tags && tags.some((tag) => tag.length > 32)) clientErrors.tags = "Each tag must be 32 characters or fewer.";
+      if (!["open", "looking_for_team", "just_idea"].includes(intent)) clientErrors.intent = "Invalid intent.";
+
+      if (Object.keys(clientErrors).length > 0) {
+        applyInnovationFieldErrors(clientErrors);
+        errorEl.textContent = "Please fix the errors above.";
+        errorEl.style.display = "block";
+        return;
+      }
 
       const payload = {
         title,
@@ -225,10 +273,11 @@
           method: "POST",
           auth: true,
           body: payload,
-        });
-        if (!response.ok) {
-          errorEl.textContent = data.detail || "Failed to publish innovation.";
-          errorEl.style.display = "block";
+          });
+          if (!response.ok) {
+            errorEl.textContent = XsoliaApp.formatApiError(data, "Failed to publish innovation.");
+            errorEl.style.display = "block";
+            applyInnovationFieldErrors(XsoliaApp.getFieldErrors(data));
           return;
         }
 

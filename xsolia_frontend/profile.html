@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Public Profile · Krotka.ai by xSolia</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/theme.css?v=20260425-profile" />
+</head>
+<body class="min-h-screen flex flex-col">
+  <div id="navbar"></div>
+
+  <main class="flex-1 container workspace-shell" style="padding-top:1.6rem; padding-bottom:2.4rem;">
+    <section class="section workspace-hero motion-reveal" style="align-items:center;">
+      <div>
+        <p class="eyebrow">Public profile</p>
+        <h1 id="profileName" style="margin:0;">Loading...</h1>
+        <p id="profileMeta" style="font-size:0.92rem; color:var(--ink-muted); margin-top:0.65rem;"></p>
+      </div>
+      <div class="x-card" style="min-width:190px; text-align:right;">
+        <p style="font-size:0.72rem; color:var(--ink-muted); margin:0 0 0.25rem;">Profile</p>
+        <p id="profileUsername" class="font-data" style="font-size:1rem; color:var(--ink-strong); margin:0;">@...</p>
+      </div>
+    </section>
+
+    <section class="section grid md:grid-cols-5 gap-4 motion-reveal" style="max-width:1080px; margin-left:auto; margin-right:auto;">
+      <div class="x-card">
+        <p id="labelOne" style="font-size:0.75rem; color:var(--ink-muted); margin:0 0 0.28rem;">Active projects</p>
+        <p id="projectsCount" class="profile-stat-value" style="font-size:2rem; color:var(--ink-strong); margin:0;">0</p>
+      </div>
+      <div class="x-card">
+        <p id="labelTwo" style="font-size:0.75rem; color:var(--ink-muted); margin:0 0 0.28rem;">Total responses</p>
+        <p id="totalResponses" class="profile-stat-value" style="font-size:2rem; color:var(--ink-strong); margin:0;">0</p>
+      </div>
+      <div class="x-card">
+        <p id="labelThree" style="font-size:0.75rem; color:var(--ink-muted); margin:0 0 0.28rem;">Avg interest</p>
+        <p id="avgInterest" class="profile-stat-value" style="font-size:2rem; color:var(--ink-strong); margin:0;">–</p>
+      </div>
+      <div class="x-card">
+        <p id="labelFour" style="font-size:0.75rem; color:var(--ink-muted); margin:0 0 0.28rem;">Best streak</p>
+        <p id="bestStreak" class="profile-stat-value" style="font-size:2rem; color:var(--ink-strong); margin:0;">0</p>
+      </div>
+      <div class="x-card">
+        <p style="font-size:0.75rem; color:var(--ink-muted); margin:0 0 0.28rem;">Points</p>
+        <p id="pointsValue" class="profile-stat-value font-data" style="font-size:2rem; color:var(--ink-strong); margin:0;">0</p>
+      </div>
+    </section>
+
+    <section id="topProjectSection" class="section x-card motion-reveal" style="max-width:960px; margin-left:auto; margin-right:auto;">
+      <p class="eyebrow">Top active project</p>
+      <h2 id="topProjectTitle" style="font-size:1.35rem; font-weight:800; color:var(--ink-strong); margin:0.2rem 0 0;">No active project yet</h2>
+      <p id="topProjectMeta" style="font-size:0.9rem; color:var(--ink-muted); margin:0.55rem 0 0;"></p>
+    </section>
+
+    <p id="error" class="hidden" style="max-width:960px; margin:1rem auto 0; color:#f97373; font-size:0.9rem;"></p>
+  </main>
+
+  <footer style="text-align:center; padding:1.5rem 0; font-size:0.75rem; color:var(--ink-faint);">© 2026 Krotka.ai by xSolia</footer>
+
+  <script src="js/app.js?v=20260424-gsap"></script>
+  <script src="js/logo.js"></script>
+  <script src="js/nav.js"></script>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const username = (params.get('u') || '').trim().toLowerCase();
+    const errorEl = document.getElementById('error');
+    let backLinkInserted = false;
+
+    if (!username) {
+      errorEl.textContent = 'No profile specified. If you arrived here from a link, it may be incomplete.';
+      errorEl.classList.remove('hidden');
+      if (!backLinkInserted) {
+        errorEl.insertAdjacentHTML(
+          'afterend',
+          '<p style="max-width:960px;margin:0.5rem auto 0;font-size:0.85rem;"><a href="index.html" style="color:var(--accent);">← Back to home</a></p>'
+        );
+        backLinkInserted = true;
+      }
+    } else {
+      loadProfile(username);
+    }
+
+    async function loadProfile(handle) {
+      try {
+        const { response, data } = await XsoliaApp.apiFetch(`/users/${encodeURIComponent(handle)}/public`);
+        if (!response.ok) throw new Error(XsoliaApp.formatApiError(data, 'Profile not found.'));
+
+        document.title = `${data.username} · Krotka.ai by xSolia`;
+        document.getElementById('profileName').textContent = data.name || data.username;
+        document.getElementById('profileUsername').textContent = `@${data.username}`;
+        document.getElementById('profileMeta').textContent = data.role === 'creator'
+          ? 'Creator validation profile: active topics, response volume, and market signal.'
+          : 'Tester profile: contribution quality, acceptance rate, and category strengths.';
+        document.getElementById('pointsValue').textContent = `${Number(data.points || 0)} pts`;
+
+        if (data.role === 'creator') {
+          document.getElementById('labelOne').textContent = 'Active projects';
+          document.getElementById('labelTwo').textContent = 'Total responses';
+          document.getElementById('labelThree').textContent = 'Avg interest';
+          document.getElementById('labelFour').textContent = 'Best streak';
+          document.getElementById('projectsCount').textContent = String(data.projects_count || 0);
+          document.getElementById('totalResponses').textContent = String(data.total_responses || 0);
+          document.getElementById('avgInterest').textContent = data.avg_interest != null ? `${Number(data.avg_interest).toFixed(1)}/5` : '–';
+          document.getElementById('bestStreak').textContent = `${data.streak_best || 0}d`;
+
+          const top = data.top_project;
+          document.getElementById('topProjectSection').classList.remove('hidden');
+          document.getElementById('topProjectTitle').textContent = top ? top.title : 'No active project yet';
+          document.getElementById('topProjectMeta').textContent = top
+            ? `${top.responses_count} tester${top.responses_count === 1 ? '' : 's'} · Interest ${top.avg_interest != null ? Number(top.avg_interest).toFixed(1) : '–'}/5`
+            : 'When this creator publishes active validation topics, the strongest one will appear here.';
+        } else {
+          const responsesCount = Number(data.responses_count || data.total_responses || 0);
+          const acceptedCount = Number(data.accepted_responses_count || 0);
+          const acceptanceRate = Math.round(Number(data.acceptance_rate || 0) * 100);
+          const bestCategories = Array.isArray(data.best_categories) && data.best_categories.length
+            ? data.best_categories.join(' · ')
+            : (data.top_category || '–');
+
+          document.getElementById('labelOne').textContent = 'Reliability score';
+          document.getElementById('labelTwo').textContent = 'Accepted responses';
+          document.getElementById('labelThree').textContent = 'Acceptance rate';
+          document.getElementById('labelFour').textContent = 'Best streak';
+          document.getElementById('projectsCount').textContent = String(Number(data.reliability_score || 0));
+          document.getElementById('totalResponses').textContent = `${acceptedCount}/${responsesCount}`;
+          document.getElementById('avgInterest').textContent = `${acceptanceRate}%`;
+          document.getElementById('bestStreak').textContent = `${data.streak_best || 0}d`;
+          document.getElementById('topProjectSection').classList.remove('hidden');
+          document.getElementById('topProjectTitle').textContent = 'Best categories';
+          document.getElementById('topProjectMeta').textContent = bestCategories;
+        }
+        XsoliaApp.initMotion();
+      } catch (err) {
+        errorEl.textContent = err.message || 'Failed to load profile.';
+        errorEl.classList.remove('hidden');
+      }
+    }
+  </script>
+</body>
+</html>

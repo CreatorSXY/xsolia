@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Register · xsolia.com</title>
+  <title>Register · Krotka.ai by xSolia</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="css/theme.css">
+  <link rel="stylesheet" href="css/theme.css?v=20260424-gsap">
 </head>
 <body class="min-h-screen flex flex-col">
   <!-- Shared navbar -->
@@ -30,7 +30,7 @@
             k
           </div>
           <div>
-            <div class="site-logo-text">xsolia.com</div>
+            <div class="site-logo-text">Krotka.ai by xSolia</div>
             <div class="site-subtitle">Early validation playground</div>
           </div>
         </a>
@@ -97,24 +97,27 @@
     </header>
   </div>
 
-  <main class="flex-1 flex items-center justify-center p-4">
-    <div class="x-card" style="width:100%; max-width:420px;">
+  <main class="flex-1 auth-shell p-4">
+    <div class="x-card auth-panel motion-reveal" style="width:100%; max-width:420px;">
       <h1 style="font-size:1.4rem; font-weight:600; margin-bottom:0.6rem; text-align:center;">Create an account</h1>
       <p style="font-size:0.85rem; color:#6b7280; text-align:center; margin-bottom:1rem;">
         Choose your role below. Creators can upgrade later anytime.
       </p>
-      <form id="regForm" class="space-y-4">
+      <form id="regForm" class="space-y-4" novalidate>
         <div>
           <label style="font-size:0.85rem; color:#6b7280;">Name</label>
           <input id="name" type="text" required class="x-input" />
+          <span id="err-name" style="display:none; font-size:0.75rem; color:#f97373;"></span>
         </div>
         <div>
           <label style="font-size:0.85rem; color:#6b7280;">Email</label>
           <input id="email" type="email" required class="x-input" />
+          <span id="err-email" style="display:none; font-size:0.75rem; color:#f97373;"></span>
         </div>
         <div>
           <label style="font-size:0.85rem; color:#6b7280;">Password</label>
           <input id="password" type="password" required class="x-input" />
+          <span id="err-password" style="display:none; font-size:0.75rem; color:#f97373;"></span>
         </div>
         <div>
           <label style="font-size:0.85rem; color:#6b7280;">Sign up as</label>
@@ -122,6 +125,7 @@
             <option value="tester">Early Tester</option>
             <option value="creator">Creator</option>
           </select>
+          <span id="err-role" style="display:none; font-size:0.75rem; color:#f97373;"></span>
         </div>
         <div id="subscriptionWrap" class="hidden">
           <label style="font-size:0.85rem; color:#6b7280;">Subscription plan</label>
@@ -130,6 +134,7 @@
             <option value="creator_basic">Creator Basic — $15/mo</option>
             <option value="creator_plus">Creator Plus — $20/mo</option>
           </select>
+          <span id="err-subscription" style="display:none; font-size:0.75rem; color:#f97373;"></span>
           <p style="font-size:0.75rem; color:#9ca3af; margin-top:0.25rem;">
             You can change your plan anytime in your dashboard.
           </p>
@@ -146,11 +151,11 @@
     </div>
   </main>
 
-  <footer style="text-align:center; padding:1.5rem 0; font-size:0.75rem; color:#9ca3af;">
-    © 2025 xsolia.com
+  <footer style="text-align:center; padding:1.5rem 0; font-size:0.75rem; color:var(--ink-faint);">
+    © 2026 Krotka.ai by xSolia
   </footer>
 
-  <script src="js/app.js"></script>
+  <script src="js/app.js?v=20260424-gsap"></script>
   <script src="js/logo.js"></script>
   <script src="js/nav.js"></script>
   <script>
@@ -175,6 +180,31 @@
     roleSelect.addEventListener('change', updateSubscriptionVisibility);
     updateSubscriptionVisibility();
 
+    function clearRegisterFieldErrors() {
+      ['name', 'email', 'password', 'role', 'subscription'].forEach((id) => {
+        const errorNode = document.getElementById(`err-${id}`);
+        const input = document.getElementById(id);
+        if (errorNode) {
+          errorNode.textContent = '';
+          errorNode.style.display = 'none';
+        }
+        if (input) input.style.outline = '';
+      });
+    }
+
+    function applyRegisterFieldErrors(fieldErrors) {
+      ['name', 'email', 'password', 'role', 'subscription'].forEach((id) => {
+        const message = fieldErrors[id] || '';
+        const errorNode = document.getElementById(`err-${id}`);
+        const input = document.getElementById(id);
+        if (errorNode) {
+          errorNode.textContent = message;
+          errorNode.style.display = message ? 'block' : 'none';
+        }
+        if (input) input.style.outline = message ? '1.5px solid #f97373' : '';
+      });
+    }
+
     document.getElementById('regForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const name = document.getElementById('name').value;
@@ -182,17 +212,54 @@
       const password = document.getElementById('password').value;
       const role = roleSelect.value;
       const subscription = subscriptionSelect.value;
-      const payload = { name, email, password, role, subscription };
-      const { response, data } = await XsoliaApp.apiFetch('/register', {
-        method: 'POST',
-        body: payload
-      });
       const errorEl = document.getElementById('error');
-      if (!response.ok) {
-        errorEl.textContent = data.detail || 'Registration failed';
+      const submitBtn = e.target.querySelector('button[type="submit"]');
+      const originalText = submitBtn ? submitBtn.textContent : 'Register';
+      errorEl.style.display = 'none';
+      clearRegisterFieldErrors();
+
+      const clientErrors = {};
+      const cleanName = name.trim();
+      const cleanEmail = email.trim().toLowerCase();
+      if (cleanName.length < 2) clientErrors.name = 'Name is too short.';
+      else if (cleanName.length > 64) clientErrors.name = 'Name is too long.';
+      if (!cleanEmail) clientErrors.email = 'Email is required.';
+      else if (!cleanEmail.includes('@')) clientErrors.email = 'Invalid email.';
+      if (password.length < 8) clientErrors.password = 'Password must be at least 8 characters.';
+      else if (password.length > 128) clientErrors.password = 'Password is too long.';
+      if (!['tester', 'creator'].includes(role)) clientErrors.role = 'Invalid role.';
+      if (!['free', 'creator_basic', 'creator_plus'].includes(subscription)) clientErrors.subscription = 'Invalid subscription plan.';
+      if (Object.keys(clientErrors).length > 0) {
+        applyRegisterFieldErrors(clientErrors);
+        errorEl.textContent = 'Please fix the errors above.';
         errorEl.style.display = 'block';
-      } else {
-        window.location.href = 'login.html';
+        return;
+      }
+
+      const payload = { name: cleanName, email: cleanEmail, password, role, subscription };
+
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Please wait...';
+      }
+
+      try {
+        const { response, data } = await XsoliaApp.apiFetch('/register', {
+          method: 'POST',
+          body: payload
+        });
+        if (!response.ok) {
+          errorEl.textContent = XsoliaApp.formatApiError(data, 'Registration failed');
+          errorEl.style.display = 'block';
+          applyRegisterFieldErrors(XsoliaApp.getFieldErrors(data));
+        } else {
+          window.location.href = 'login.html';
+        }
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = originalText;
+        }
       }
     });
   </script>

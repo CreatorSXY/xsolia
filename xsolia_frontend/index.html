@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>xsolia.com · Validate Before You Build</title>
+  <title>Krotka.ai by xSolia · Validate Before You Build</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="css/theme.css">
+  <link rel="stylesheet" href="css/theme.css?v=20260424-gsap">
 </head>
 
 <body class="min-h-screen flex flex-col">
@@ -26,44 +26,23 @@
               color: #fff;
             "
           >
-            k
+            x
           </div>
           <div>
-            <div class="site-logo-text">xsolia.com</div>
-            <div class="site-subtitle">Validate early, build with confidence</div>
+            <div class="site-logo-text">Krotka.ai by xSolia</div>
+            <div class="site-subtitle">Validation intelligence for builders</div>
           </div>
         </a>
 
         <div class="flex-1 flex items-center justify-end gap-4">
-          <form
-            id="navSearchForm"
-            class="hidden md:flex items-center gap-2"
-            style="max-width: 260px; width: 100%;"
-          >
-            <input
-              id="navSearchInput"
-              type="search"
-              class="x-input"
-              placeholder="Search topics…"
-              style="padding-right: 2.2rem;"
-            />
-            <button
-              type="submit"
-              style="
-                margin-left: -2.1rem;
-                font-size: 0.8rem;
-                color: #9ca3af;
-              "
-            >
-              🔍
+          <form id="navSearchForm" class="hidden md:flex items-center gap-2" style="max-width: 260px; width: 100%;">
+            <input id="navSearchInput" type="search" class="x-input" placeholder="Search validation topics" style="padding-right: 4rem;" />
+            <button type="submit" class="x-btn-secondary" style="min-height: 34px; padding: 0 0.8rem; margin-left: -4.25rem; font-size: 0.74rem;">
+              Search
             </button>
           </form>
 
-          <div
-            id="userInfo"
-            class="flex items-center gap-2"
-            style="font-size: 0.8rem; color: #6b7280;"
-          >
+          <div id="userInfo" class="flex items-center gap-2" style="font-size: 0.8rem; color: #6b7280;">
             <div
               id="userAvatar"
               style="
@@ -83,9 +62,7 @@
             </div>
             <div class="flex flex-col">
               <span id="userNameLabel">Guest</span>
-              <span id="userRoleLabel" style="font-size: 0.7rem; color: #9ca3af;">
-                Not signed in
-              </span>
+              <span id="userRoleLabel" style="font-size: 0.7rem; color: #9ca3af;">Not signed in</span>
             </div>
           </div>
         </div>
@@ -95,60 +72,98 @@
 
   <section class="landing-hero">
     <div class="landing-inner">
-      <div class="brand-line reveal-up">xsolia.com</div>
+      <div class="brand-line reveal-up">Krotka.ai by xSolia</div>
       <h1 class="hero-title reveal-up reveal-delay-1">Find signal before you ship.</h1>
       <p class="hero-sub reveal-up reveal-delay-2">
-        Publish your concept, collect real reactions, and prioritize what deserves your next sprint.
+        Turn raw product ideas into structured feedback, price willingness, and a decision brief founders can act on.
       </p>
       <div class="hero-cta-row reveal-up reveal-delay-2">
-        <a href="login.html?role=creator" class="x-btn-primary">Start as Creator</a>
-        <a href="login.html?role=tester" class="x-btn-secondary" style="background: rgba(255,255,255,0.78); border-color: rgba(255,255,255,0.58);">
-          Join as Tester
-        </a>
+        <a href="login.html?role=creator" class="x-btn-primary">Start a validation topic</a>
+        <a href="explore.html" class="x-btn-secondary">Explore live signals</a>
       </div>
-      <div class="hero-note reveal-up reveal-delay-3">From first idea to early traction with less guesswork.</div>
+      <div class="hero-note reveal-up reveal-delay-3">
+        Built for pre-launch products, side projects, and lean teams that need evidence before another sprint.
+      </div>
     </div>
   </section>
 
   <main class="flex-1">
-    <section class="canvas-strip">
-      <div class="container" style="padding-top:2rem; padding-bottom:2rem;">
-        <div class="flex items-end justify-between gap-4" style="margin-bottom:0.6rem;">
-          <div>
-            <h2 style="font-size:1.2rem; font-weight:700; color:#1f1b18; margin:0;">Live validation feed</h2>
-            <p style="font-size:0.86rem; color:#6e6259; margin-top:0.2rem;">Latest topics waiting for user feedback.</p>
-          </div>
-          <a href="explore.html" class="x-btn-secondary" style="font-size:0.8rem;">Browse all</a>
+    <section class="container section" style="padding-top: clamp(2.3rem, 5vw, 4.2rem); padding-bottom: clamp(1.7rem, 4vw, 3rem);">
+      <div class="home-signal-layout motion-reveal">
+        <div>
+          <div class="eyebrow">What makes it useful</div>
+          <h2 class="home-section-title">A sharper validation loop, not another idea board.</h2>
         </div>
-
-        <div id="homeTopics" class="x-card" style="padding-top:0.3rem; padding-bottom:0.3rem;"></div>
+        <div class="signal-columns">
+          <div class="signal-column">
+            <strong>Structured feedback</strong>
+            <p>Creators define the exact questions that matter, so responses are comparable instead of vague comments.</p>
+          </div>
+          <div class="signal-column">
+            <strong>Price willingness</strong>
+            <p>Every topic can collect min/max willingness-to-pay ranges, the signal founders actually need.</p>
+          </div>
+          <div class="signal-column">
+            <strong>AI decision brief</strong>
+            <p>Plus creators can summarize patterns, objections, and next moves directly from real tester responses.</p>
+          </div>
+        </div>
       </div>
     </section>
 
-    <section class="container" style="padding-top:2rem; padding-bottom:2.2rem;">
-      <div class="x-card" style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:1rem; background:linear-gradient(115deg, #fff8f1 0%, #f6ede3 100%);">
-        <div style="max-width:44ch;">
-          <h3 style="margin:0; font-size:1.1rem; font-weight:700; color:#1f1b18;">Innovation Pool</h3>
-          <p style="margin-top:0.35rem; margin-bottom:0; font-size:0.88rem; color:#65594f;">
-            Explore early concepts, side projects, and rough ideas from creators and testers.
+    <section class="canvas-strip">
+      <div class="container" style="padding-top: clamp(2rem, 5vw, 3.4rem); padding-bottom: clamp(2rem, 5vw, 3.4rem);">
+        <div class="motion-reveal flex items-end justify-between gap-4" style="margin-bottom: 0.9rem;">
+          <div>
+            <div class="eyebrow">Live validation feed</div>
+            <h2 style="font-size: clamp(1.6rem, 4vw, 2.6rem); font-weight: 800; color: var(--ink-strong); margin: 0; letter-spacing: -0.045em;">Topics asking for market signal</h2>
+            <p style="font-size: 0.9rem; color: var(--ink-muted); margin-top: 0.35rem;">Answer what you know. Help creators avoid building in the dark.</p>
+          </div>
+          <a href="explore.html" class="x-btn-secondary" style="font-size: 0.8rem; white-space: nowrap;">Browse all</a>
+        </div>
+
+        <div id="homeTopics" class="x-card surface-list motion-reveal" style="padding-top: 0.35rem; padding-bottom: 0.35rem;"></div>
+      </div>
+    </section>
+
+    <section class="container section" style="padding-top: clamp(2.2rem, 5vw, 3.7rem); padding-bottom: clamp(1.5rem, 4vw, 2.7rem);">
+      <div class="x-card innovation-card-grid motion-reveal" style="background:linear-gradient(115deg, rgba(251,248,241,0.92) 0%, rgba(230,225,215,0.82) 100%);">
+        <div style="max-width: 58ch;">
+          <div class="eyebrow">Innovation Pool</div>
+          <h3 style="margin:0; font-family:'Instrument Serif', Georgia, serif; font-size:clamp(2rem, 4vw, 3rem); line-height:0.96; letter-spacing:-0.045em; color:var(--ink-strong);">A parking lot for rough ideas with real traction potential.</h3>
+          <p style="margin-top:0.7rem; margin-bottom:0; font-size:0.92rem; color:var(--ink-muted);">
+            Use the pool to watch early concepts, compare demand signals, and spot validation topics worth turning into a focused study.
           </p>
         </div>
         <a href="innovation-explore.html" class="x-btn-primary" style="white-space:nowrap;">Open Innovation Pool</a>
       </div>
     </section>
+
+    <section class="container" style="padding-top: 0.8rem; padding-bottom: clamp(2.6rem, 6vw, 4.8rem);">
+      <div class="final-cta motion-reveal">
+        <div style="max-width: 58ch;">
+          <div class="eyebrow" style="color: rgba(255,247,237,0.64);">For modern builders</div>
+          <h3 style="margin:0; font-family:'Instrument Serif', Georgia, serif; font-size:clamp(2.2rem, 5vw, 4rem); line-height:0.94; letter-spacing:-0.05em;">Validate the market before the roadmap hardens.</h3>
+          <p style="margin:0.85rem 0 1.15rem; color:rgba(255,247,237,0.74); font-size:0.95rem;">
+            Publish once, collect structured responses, inspect price ranges, and decide whether to build, reposition, or stop.
+          </p>
+          <a href="login.html?role=creator" class="x-btn-primary" style="background:#fff7ed; color:var(--ink-strong);">Create your first topic</a>
+        </div>
+      </div>
+    </section>
   </main>
 
-  <footer style="text-align:center; padding:1.5rem 0; font-size:0.75rem; color:#9ca3af;">
-    © 2026 xsolia.com
+  <footer style="text-align:center; padding:1.5rem 0; font-size:0.75rem; color:var(--ink-faint);">
+    © 2026 Krotka.ai by xSolia
   </footer>
 
-  <script src="js/app.js"></script>
+  <script src="js/app.js?v=20260424-gsap"></script>
   <script src="js/logo.js"></script>
   <script src="js/nav.js"></script>
   <script>
     function createTopicRow(topic) {
       const row = document.createElement("article");
-      row.className = "topic-row";
+      row.className = "topic-row motion-reveal";
 
       const left = document.createElement("div");
 
@@ -162,6 +177,19 @@
       meta.textContent = `Target: ${topic.target_audience || "Not specified"} · Questions: ${questionCount} · Budget: $${topic.budget || 0}`;
 
       left.appendChild(title);
+      if (Array.isArray(topic.image_urls) && topic.image_urls.length > 0) {
+        const preview = document.createElement("img");
+        preview.src = topic.image_urls[0];
+        preview.alt = `${topic.title || "Topic"} preview`;
+        preview.style.width = "min(180px, 100%)";
+        preview.style.height = "82px";
+        preview.style.objectFit = "cover";
+        preview.style.borderRadius = "10px";
+        preview.style.border = "1px solid rgba(42,39,34,0.16)";
+        preview.style.display = "block";
+        preview.style.margin = "0.45rem 0";
+        left.appendChild(preview);
+      }
       left.appendChild(meta);
 
       const action = document.createElement("a");
@@ -179,31 +207,27 @@
       const box = document.getElementById("homeTopics");
       box.textContent = "";
 
+      function renderHomeTopicsEmpty() {
+        box.innerHTML =
+          '<p style="padding:1.2rem; color:var(--ink-muted); font-size:0.9rem;">No active topics yet. Be the first to publish one.</p>';
+      }
+
       try {
-        const { response, data } = await XsoliaApp.apiFetch("/projects/active");
+        const { response, data } = await XsoliaApp.apiFetch("/projects/active?limit=5");
         if (!response.ok) {
-          throw new Error((data && data.detail) || "Failed to load topics");
+          throw new Error(XsoliaApp.formatApiError(data, "Failed to load topics"));
         }
 
-        const topics = (Array.isArray(data) ? data : []).slice(0, 5);
+        const topics = Array.isArray(data) ? data : [];
         if (!topics.length) {
-          const empty = document.createElement("p");
-          empty.style.fontSize = "0.85rem";
-          empty.style.color = "#8d7f73";
-          empty.style.padding = "0.85rem 0";
-          empty.textContent = "No active topics yet.";
-          box.appendChild(empty);
+          renderHomeTopicsEmpty();
           return;
         }
 
         topics.forEach((topic) => box.appendChild(createTopicRow(topic)));
+        XsoliaApp.initMotion();
       } catch (error) {
-        const failed = document.createElement("p");
-        failed.style.fontSize = "0.85rem";
-        failed.style.color = "#b1492c";
-        failed.style.padding = "0.85rem 0";
-        failed.textContent = error.message || "Failed to load topics.";
-        box.appendChild(failed);
+        renderHomeTopicsEmpty();
       }
     }
 

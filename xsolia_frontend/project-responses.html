@@ -2,10 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Topic responses · xsolia.com</title>
+  <title>Topic responses · Krotka.ai by xSolia</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="css/theme.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <link rel="stylesheet" href="css/theme.css?v=20260424-gsap" />
 </head>
 
 <body class="min-h-screen flex flex-col">
@@ -31,7 +32,7 @@
             k
           </div>
           <div>
-            <div class="site-logo-text">xsolia.com</div>
+            <div class="site-logo-text">Krotka.ai by xSolia</div>
             <div class="site-subtitle">Early validation playground</div>
           </div>
         </a>
@@ -99,28 +100,77 @@
   </div>
 
   <!-- Main -->
-  <main class="flex-1 container" style="padding-top:1.5rem; padding-bottom:2rem;">
+  <main class="flex-1 container creator-insights-shell" style="padding-top:1.5rem; padding-bottom:2rem;">
     <!-- Project info -->
-    <section class="section" style="max-width:760px; margin:0 auto;">
-      <div class="x-card">
-        <p style="font-size:0.75rem; color:#9ca3af; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:0.25rem;">
+    <section class="section insight-hero">
+      <div class="insight-hero-main">
+        <p class="eyebrow">
           Topic overview
         </p>
-        <h1 id="projectTitle" style="font-size:1.45rem; font-weight:600; margin-bottom:0.25rem;">
+        <h1 id="projectTitle" class="insight-title">
           Loading...
         </h1>
-        <p id="projectDesc" style="font-size:0.9rem; color:#4b5563; margin-bottom:0.3rem;"></p>
-        <p id="projectMeta" style="font-size:0.8rem; color:#6b7280;"></p>
+        <p id="projectDesc" class="insight-description"></p>
+        <p id="projectMeta" class="insight-meta"></p>
+      </div>
+      <div class="insight-orbit" aria-hidden="true">
+        <span></span>
+        <span></span>
       </div>
     </section>
 
-    <!-- Responses list -->
-    <section class="section" style="max-width:760px; margin:0 auto;">
-      <div class="flex items-center justify-between mb-2">
-        <h2 style="font-size:1.05rem; font-weight:600;">Responses from testers</h2>
-        <span id="responsesCount" style="font-size:0.8rem; color:#9ca3af;"></span>
+    <!-- AI summary workspace -->
+    <section class="section ai-summary-stage">
+      <div class="ai-summary-copy">
+        <p class="eyebrow">Creator Plus</p>
+        <h2>AI signal brief</h2>
+        <p>
+          Turn raw tester answers into pricing signals, objections, and next steps.
+        </p>
       </div>
-      <p style="font-size:0.8rem; color:#6b7280; margin-bottom:0.75rem;">
+      <div class="ai-summary-actions">
+        <button id="aiSummaryBtn" type="button" class="x-btn-primary ai-summary-btn">
+          Generate AI summary
+        </button>
+        <button id="aiRefreshBtn" type="button" class="x-btn-secondary ai-summary-btn hidden">
+          Refresh
+        </button>
+      </div>
+      <div id="aiSummaryStatus" class="ai-summary-status"></div>
+      <div id="aiSummaryContent" class="ai-summary-content">
+        <div class="summary-placeholder">
+          <span class="summary-pulse"></span>
+          <p>Open the brief after responses arrive. Cached summaries load instantly; refresh only when answers change.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Share card -->
+    <section class="section ai-summary-stage motion-reveal">
+      <div class="ai-summary-copy">
+        <p class="eyebrow">Shareable proof</p>
+        <h2>Validation report card</h2>
+        <p>Create a 1200×630 PNG or copy a plain-text result summary for updates and investor notes.</p>
+      </div>
+      <div class="ai-summary-actions">
+        <button id="shareResultsBtn" type="button" class="x-btn-primary ai-summary-btn">Share results</button>
+        <button id="downloadCardBtn" type="button" class="x-btn-secondary ai-summary-btn hidden">Download card</button>
+        <button id="copyShareTextBtn" type="button" class="x-btn-secondary ai-summary-btn hidden">Copy text</button>
+      </div>
+      <div id="shareStatus" class="ai-summary-status"></div>
+      <div id="shareCardPreview" class="hidden" style="grid-column:1 / -1; overflow:auto;"></div>
+    </section>
+
+    <!-- Responses list -->
+    <section class="section responses-stage">
+      <div class="responses-heading">
+        <div>
+          <p class="eyebrow">Tester evidence</p>
+          <h2>Responses from testers</h2>
+        </div>
+        <span id="responsesCount"></span>
+      </div>
+      <p class="responses-note">
         Review answers below. You can mark one or more responses as <strong>accepted</strong> to reward good feedback.
       </p>
 
@@ -132,11 +182,11 @@
     </section>
   </main>
 
-  <footer style="text-align:center; padding:1.5rem 0; font-size:0.75rem; color:#9ca3af;">
-    © 2025 xsolia.com
+  <footer style="text-align:center; padding:1.5rem 0; font-size:0.75rem; color:var(--ink-faint);">
+    © 2026 Krotka.ai by xSolia
   </footer>
 
-  <script src="js/app.js"></script>
+  <script src="js/app.js?v=20260424-gsap"></script>
   <script src="js/logo.js"></script>
   <script src="js/nav.js"></script>
   <script>
@@ -145,6 +195,7 @@
       throw new Error("Authentication required");
     }
     const userId = Number(session.userId);
+    const subscription = session.subscription || "free";
 
     const params = new URLSearchParams(window.location.search);
     const projectId = params.get("project_id");
@@ -160,16 +211,29 @@
     const emptyHintEl = document.getElementById("emptyHint");
     const errorEl = document.getElementById("error");
     const responsesCountEl = document.getElementById("responsesCount");
+    const aiSummaryBtn = document.getElementById("aiSummaryBtn");
+    const aiRefreshBtn = document.getElementById("aiRefreshBtn");
+    const aiSummaryStatusEl = document.getElementById("aiSummaryStatus");
+    const aiSummaryContentEl = document.getElementById("aiSummaryContent");
+    const shareResultsBtn = document.getElementById("shareResultsBtn");
+    const downloadCardBtn = document.getElementById("downloadCardBtn");
+    const copyShareTextBtn = document.getElementById("copyShareTextBtn");
+    const shareStatusEl = document.getElementById("shareStatus");
+    const shareCardPreviewEl = document.getElementById("shareCardPreview");
 
     let currentProject = null;
+    let currentResponses = [];
+    let latestAiSummary = null;
+    let latestStats = null;
+    let latestShareText = "";
 
     async function loadProjectAndResponses() {
       try {
         // 1) 拉取当前 project（拿到 title / description / questions / creator_id）
-        const { response: projectRes, data: projectData } = await XsoliaApp.apiFetch(`/projects/${projectId}`);
-        if (!projectRes.ok) {
-          throw new Error(projectData.detail || "Failed to load project.");
-        }
+          const { response: projectRes, data: projectData } = await XsoliaApp.apiFetch(`/projects/${projectId}`);
+          if (!projectRes.ok) {
+            throw new Error(XsoliaApp.formatApiError(projectData, "Failed to load project."));
+          }
 
         const proj = projectData;
         currentProject = proj;
@@ -185,20 +249,241 @@
         projectDescEl.textContent = proj.description || "";
         const target = proj.target_audience || "Not specified";
         const budget = proj.budget || 0;
-        projectMetaEl.textContent = `Target: ${target} · Budget: $${budget}`;
+        const sourceText = proj.source_innovation_id ? ` · Source: Innovation Pool idea #${proj.source_innovation_id}` : "";
+        projectMetaEl.textContent = `Target: ${target} · Budget: $${budget}${sourceText}`;
 
         // 2) 拉取该 project 的所有回答
         const { response: respRes, data: respData } = await XsoliaApp.apiFetch(`/projects/${projectId}/responses?limit=100&offset=0`, {
           auth: true
-        });
-        if (!respRes.ok) {
-          throw new Error(respData.detail || "Failed to load responses.");
-        }
+          });
+          if (!respRes.ok) {
+            throw new Error(XsoliaApp.formatApiError(respData, "Failed to load responses."));
+          }
 
-        renderResponses(respData, proj);
+        currentResponses = Array.isArray(respData) ? respData : [];
+        renderResponses(currentResponses, proj);
+        configureAiSummaryControls();
       } catch (err) {
         errorEl.textContent = err.message || "Error loading topic responses.";
         errorEl.classList.remove("hidden");
+      }
+    }
+
+    function configureAiSummaryControls() {
+      if (subscription !== "creator_plus") {
+        aiSummaryBtn.disabled = true;
+        aiSummaryStatusEl.textContent = "AI summaries are available on Creator Plus.";
+        aiSummaryContentEl.innerHTML = `
+          <div class="summary-placeholder">
+            <span class="summary-pulse"></span>
+            <p>Upgrade to Creator Plus when you are ready to turn response data into a structured decision brief.</p>
+          </div>
+        `;
+        return;
+      }
+
+      if (!currentResponses.length) {
+        aiSummaryBtn.disabled = true;
+        aiSummaryStatusEl.textContent = "Waiting for tester responses before generating a brief.";
+        return;
+      }
+
+      aiSummaryBtn.disabled = false;
+      aiSummaryStatusEl.textContent = "Ready to summarize current responses.";
+    }
+
+    function renderList(title, items) {
+      const cleanItems = Array.isArray(items) ? items.filter(Boolean) : [];
+      if (!cleanItems.length) return "";
+      return `
+        <section class="summary-block">
+          <h3>${title}</h3>
+          <ul>
+            ${cleanItems.map((item) => `<li>${escapeHtml(String(item))}</li>`).join("")}
+          </ul>
+        </section>
+      `;
+    }
+
+    function escapeHtml(value) {
+      return value
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function renderAiSummary(payload) {
+      const summary = payload.summary || {};
+      latestAiSummary = summary;
+      const pricing = summary.pricing_insight || {};
+      const interest = summary.interest_insight || {};
+      const generatedAt = payload.generated_at ? new Date(payload.generated_at) : null;
+      const generatedLabel = generatedAt ? generatedAt.toLocaleString() : "just now";
+      const cacheLabel = payload.cached ? "Cached" : "Fresh";
+
+      aiSummaryContentEl.innerHTML = `
+        <div class="summary-result">
+          <div class="summary-result-top">
+            <span>${cacheLabel} brief</span>
+            <span>${escapeHtml(payload.model || "AI model")} · ${escapeHtml(generatedLabel)}</span>
+          </div>
+          <p class="summary-lede">${escapeHtml(summary.summary || "No summary returned.")}</p>
+          <div class="summary-metrics">
+            <div>
+              <span>Pricing</span>
+              <strong>${escapeHtml(pricing.willingness || "Not enough signal")}</strong>
+              <small>${escapeHtml(pricing.observed_range || pricing.notes || "")}</small>
+            </div>
+            <div>
+              <span>Interest</span>
+              <strong>${escapeHtml(interest.best_segment || "Mixed")}</strong>
+              <small>${escapeHtml(interest.distribution_note || "")}</small>
+            </div>
+          </div>
+          ${renderList("Key signals", summary.key_signals)}
+          ${renderList("Top objections", summary.top_objections)}
+          ${renderList("Suggested next steps", summary.suggested_next_steps)}
+        </div>
+      `;
+      aiRefreshBtn.classList.remove("hidden");
+    }
+
+    async function loadAiSummary(refresh = false) {
+      aiSummaryBtn.disabled = true;
+      aiRefreshBtn.disabled = true;
+      aiSummaryStatusEl.textContent = refresh ? "Refreshing AI brief..." : "Generating AI brief...";
+      aiSummaryContentEl.classList.add("is-loading");
+
+      try {
+        const path = `/projects/${projectId}/ai-summary${refresh ? "?refresh=true" : ""}`;
+        const { response, data } = await XsoliaApp.apiFetch(path, { auth: true });
+        if (!response.ok) {
+          throw new Error(XsoliaApp.formatApiError(data, "Failed to generate AI summary."));
+        }
+        renderAiSummary(data);
+        aiSummaryStatusEl.textContent = data.cached
+          ? "Loaded cached brief. Refresh if responses changed."
+          : "Fresh brief generated from current responses.";
+      } catch (err) {
+        aiSummaryStatusEl.textContent = err.message || "Failed to generate AI summary.";
+      } finally {
+        aiSummaryContentEl.classList.remove("is-loading");
+        aiSummaryBtn.disabled = subscription !== "creator_plus" || !currentResponses.length;
+        aiRefreshBtn.disabled = false;
+      }
+    }
+
+    aiSummaryBtn.addEventListener("click", () => loadAiSummary(false));
+    aiRefreshBtn.addEventListener("click", () => loadAiSummary(true));
+    shareResultsBtn.addEventListener("click", buildShareCard);
+    downloadCardBtn.addEventListener("click", downloadShareCard);
+    copyShareTextBtn.addEventListener("click", copyShareText);
+
+    async function fetchProjectStatsForShare() {
+      const { response, data } = await XsoliaApp.apiFetch(`/projects/${projectId}/stats`, { auth: true });
+      if (!response.ok) throw new Error(XsoliaApp.formatApiError(data, "Failed to load project stats."));
+      latestStats = data;
+      return data;
+    }
+
+    function priceBandFromStats(stats) {
+      const min = stats && stats.avg_price_min != null ? Math.round(stats.avg_price_min) : null;
+      const max = stats && stats.avg_price_max != null ? Math.round(stats.avg_price_max) : null;
+      if (min == null || max == null) return "Price not enough data";
+      return `Price $${min}–$${max}`;
+    }
+
+    function fallbackTopSignalFromResponses() {
+      if (!Array.isArray(currentResponses) || !currentResponses.length) {
+        return "Collecting signal from tester responses";
+      }
+      const ranked = [...currentResponses].sort((a, b) => {
+        const ai = Number(a.interest_level || 0);
+        const bi = Number(b.interest_level || 0);
+        if (bi !== ai) return bi - ai;
+        return Number(b.likes_count || 0) - Number(a.likes_count || 0);
+      });
+      const topResponse = ranked[0];
+      const firstAnswer = Array.isArray(topResponse.answers)
+        ? topResponse.answers.find((value) => String(value || "").trim())
+        : null;
+      return firstAnswer || "Strongest interest clustered around practical workflow clarity.";
+    }
+
+    async function buildShareCard() {
+      shareResultsBtn.disabled = true;
+      shareStatusEl.textContent = "Preparing share card...";
+      try {
+        const stats = await fetchProjectStatsForShare();
+        const ai = latestAiSummary;
+        const topSignal = ai && Array.isArray(ai.key_signals) && ai.key_signals[0]
+          ? ai.key_signals[0]
+          : fallbackTopSignalFromResponses();
+        const interestText = stats.avg_interest != null ? `Interest ${Number(stats.avg_interest).toFixed(1)}/5` : "Interest not enough data";
+        const priceText = priceBandFromStats(stats);
+        const testersText = `${stats.responses_count || 0} tester${stats.responses_count === 1 ? "" : "s"}`;
+
+        latestShareText = `${currentProject.title} · ${testersText}\n${interestText} · ${priceText}\nTop signal: ${topSignal}\nKrotka.ai by xSolia`;
+        shareCardPreviewEl.innerHTML = `
+          <div id="share-card" style="width:1200px;height:630px;padding:68px 76px;display:flex;flex-direction:column;justify-content:space-between;background:#f4f1ea;color:#151310;border:1px solid rgba(21,19,16,0.16);font-family:Inter,Arial,sans-serif;position:relative;overflow:hidden;">
+            <div style="position:absolute;right:-140px;top:-180px;width:520px;height:520px;border-radius:999px;background:radial-gradient(circle, rgba(215,98,53,0.24), transparent 68%);"></div>
+            <div style="position:relative;z-index:1;">
+              <div style="font:700 24px 'JetBrains Mono', monospace;letter-spacing:-0.04em;color:#726b60;">Krotka.ai validation report</div>
+              <h2 style="max-width:860px;margin:42px 0 0;font:800 74px/0.95 Syne, Inter, sans-serif;letter-spacing:-0.055em;">${escapeHtml(currentProject.title)}</h2>
+              <p style="margin:24px 0 0;font-size:30px;color:#2a2722;">${escapeHtml(testersText)}</p>
+            </div>
+            <div style="position:relative;z-index:1;display:grid;grid-template-columns:1fr 1fr;gap:28px;">
+              <div>
+                <div style="font:700 21px 'JetBrains Mono', monospace;color:#726b60;">${escapeHtml(interestText)}</div>
+                <div style="margin-top:12px;font:700 21px 'JetBrains Mono', monospace;color:#726b60;">${escapeHtml(priceText)}</div>
+              </div>
+              <div style="border-left:2px solid rgba(42,39,34,0.18);padding-left:28px;">
+                <div style="font:700 18px 'JetBrains Mono', monospace;text-transform:uppercase;color:#726b60;">Top signal</div>
+                <div style="margin-top:12px;font-size:28px;line-height:1.18;color:#151310;">${escapeHtml(topSignal)}</div>
+              </div>
+            </div>
+            <div style="position:relative;z-index:1;font:800 28px Syne, Inter, sans-serif;letter-spacing:-0.04em;">Krotka.ai by xSolia</div>
+          </div>
+        `;
+        shareCardPreviewEl.classList.remove("hidden");
+        downloadCardBtn.classList.remove("hidden");
+        copyShareTextBtn.classList.remove("hidden");
+        shareStatusEl.textContent = "Share card ready.";
+      } catch (err) {
+        shareStatusEl.textContent = err.message || "Failed to prepare share card.";
+      } finally {
+        shareResultsBtn.disabled = false;
+      }
+    }
+
+    async function downloadShareCard() {
+      const card = document.getElementById("share-card");
+      if (!card || !window.html2canvas) return;
+      downloadCardBtn.disabled = true;
+      shareStatusEl.textContent = "Rendering PNG...";
+      try {
+        const canvas = await html2canvas(card, { backgroundColor: null, scale: 1 });
+        const link = document.createElement("a");
+        link.href = canvas.toDataURL("image/png");
+        link.download = `krotka-${currentProject.id || projectId}-validation-card.png`;
+        link.click();
+        shareStatusEl.textContent = "PNG exported.";
+      } catch (err) {
+        shareStatusEl.textContent = err.message || "Failed to export PNG.";
+      } finally {
+        downloadCardBtn.disabled = false;
+      }
+    }
+
+    async function copyShareText() {
+      if (!latestShareText) return;
+      try {
+        await navigator.clipboard.writeText(latestShareText);
+        shareStatusEl.textContent = "Text copied.";
+      } catch (_err) {
+        shareStatusEl.textContent = latestShareText;
       }
     }
 
@@ -217,8 +502,10 @@
       const questions = project.questions || [];
 
       responses.forEach((resp, idx) => {
+        const rep = resp.responder_reputation || null;
         const card = document.createElement("div");
-        card.className = "x-card";
+        card.className = "x-card response-card motion-reveal";
+        card.style.animationDelay = `${Math.min(idx * 70, 420)}ms`;
 
         if (resp.accepted_by_creator) {
           card.style.borderColor = "#bbf7d0"; // light green
@@ -232,7 +519,10 @@
         const leftHeader = document.createElement("div");
         leftHeader.style.fontSize = "0.85rem";
         const leftPrefix = document.createElement("span");
-        leftPrefix.textContent = `Tester #${resp.user_id} · Interest: `;
+        const responderLabel = resp.responder_name
+          ? `${resp.responder_name} (#${resp.user_id})`
+          : `Tester #${resp.user_id}`;
+        leftPrefix.textContent = `${responderLabel} · Interest: `;
         const leftStrong = document.createElement("strong");
         leftStrong.textContent = `${resp.interest_level}/5`;
         leftHeader.appendChild(leftPrefix);
@@ -257,6 +547,18 @@
         }
         priceRow.textContent = priceText;
 
+        const reputationRow = document.createElement("p");
+        reputationRow.style.fontSize = "0.78rem";
+        reputationRow.style.color = "#6b7280";
+        if (rep) {
+          const accepted = Number(rep.accepted_responses_count || 0);
+          const rate = Number(rep.acceptance_rate || 0);
+          reputationRow.textContent =
+            `Reliability ${Number(rep.reliability_score || 0)}/100 · Accepted ${accepted} · Acceptance ${(rate * 100).toFixed(0)}%`;
+        } else {
+          reputationRow.textContent = "Reputation: not enough data";
+        }
+
         // Answers list
         const answersWrap = document.createElement("div");
         answersWrap.style.marginTop = "0.5rem";
@@ -265,6 +567,7 @@
 
         (resp.answers || []).forEach((ans, i) => {
           const block = document.createElement("div");
+          block.className = "response-answer";
           block.style.marginBottom = "0.35rem";
 
           const qText = questions[i] || `Answer ${i + 1}`;
@@ -319,6 +622,60 @@
         actionsRow.appendChild(leftInfo);
         actionsRow.appendChild(rightBtns);
 
+        const commentsWrap = document.createElement("div");
+        commentsWrap.style.marginTop = "0.8rem";
+        commentsWrap.style.paddingTop = "0.8rem";
+        commentsWrap.style.borderTop = "1px solid rgba(42,39,34,0.1)";
+
+        const commentsList = document.createElement("div");
+        commentsList.style.fontSize = "0.84rem";
+        commentsList.style.color = "#6b7280";
+        commentsList.textContent = "Loading creator notes...";
+
+        const commentForm = document.createElement("form");
+        commentForm.className = "flex flex-wrap gap-2";
+        commentForm.style.marginTop = "0.65rem";
+
+        const commentInput = document.createElement("input");
+        commentInput.className = "x-input";
+        commentInput.placeholder = "Add a private follow-up note for this tester";
+        commentInput.style.flex = "1 1 260px";
+
+        const commentButton = document.createElement("button");
+        commentButton.type = "submit";
+        commentButton.className = "x-btn-secondary";
+        commentButton.style.fontSize = "0.78rem";
+        commentButton.textContent = "Send note";
+
+        commentForm.appendChild(commentInput);
+        commentForm.appendChild(commentButton);
+        commentsWrap.appendChild(commentsList);
+        commentsWrap.appendChild(commentForm);
+
+        commentForm.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          const text = commentInput.value.trim();
+          if (!text) return;
+          commentButton.disabled = true;
+          try {
+            const { response: commentRes, data } = await XsoliaApp.apiFetch(`/responses/${resp.id}/comments`, {
+              method: "POST",
+              auth: true,
+              body: { text },
+            });
+            if (!commentRes.ok) {
+              alert(XsoliaApp.formatApiError(data, "Failed to send note."));
+              return;
+            }
+            commentInput.value = "";
+            await loadResponseComments(resp.id, commentsList);
+          } catch (err) {
+            alert(err.message || "Failed to send note.");
+          } finally {
+            commentButton.disabled = false;
+          }
+        });
+
         // Attach accept handler
         if (!resp.accepted_by_creator) {
           acceptBtn.addEventListener("click", async () => {
@@ -329,10 +686,10 @@
               const { response: acceptRes, data } = await XsoliaApp.apiFetch(`/responses/${resp.id}/accept`, {
                 method: "POST",
                 auth: true
-              });
-              if (!acceptRes.ok) {
-                alert(data.detail || "Failed to accept this response.");
-                return;
+                });
+                if (!acceptRes.ok) {
+                  alert(XsoliaApp.formatApiError(data, "Failed to accept this response."));
+                  return;
               }
 
               // 更新 UI 状态
@@ -348,11 +705,39 @@
 
         card.appendChild(headerRow);
         card.appendChild(priceRow);
+        card.appendChild(reputationRow);
         card.appendChild(answersWrap);
         card.appendChild(actionsRow);
+        card.appendChild(commentsWrap);
 
         responsesListEl.appendChild(card);
+        loadResponseComments(resp.id, commentsList);
       });
+      XsoliaApp.initMotion();
+    }
+
+    async function loadResponseComments(responseId, commentsList) {
+      try {
+        const { response, data } = await XsoliaApp.apiFetch(`/responses/${responseId}/comments?limit=50&offset=0`, { auth: true });
+        if (!response.ok) {
+          commentsList.textContent = XsoliaApp.formatApiError(data, "Failed to load creator notes.");
+          return;
+        }
+        const comments = Array.isArray(data) ? data : [];
+        if (!comments.length) {
+          commentsList.textContent = "No creator notes yet.";
+          return;
+        }
+        commentsList.innerHTML = comments
+          .map((comment) => {
+            const created = comment.created_at ? new Date(comment.created_at).toLocaleDateString() : "";
+            const author = comment.author_name ? escapeHtml(comment.author_name) : `User #${comment.author_id}`;
+            return `<div style="border-left:2px solid rgba(215,98,53,0.35);padding-left:0.65rem;margin-bottom:0.5rem;"><div style="font-size:0.72rem;color:#9ca3af;margin-bottom:0.15rem;">${author}${created ? ` · ${escapeHtml(created)}` : ''}</div><div>${escapeHtml(comment.text)}</div></div>`;
+          })
+          .join("");
+      } catch (err) {
+        commentsList.textContent = err.message || "Failed to load creator notes.";
+      }
     }
 
     loadProjectAndResponses();

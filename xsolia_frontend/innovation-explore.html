@@ -1,98 +1,35 @@
-
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Innovation zone · xsolia.com</title>
+  <title>Innovation pool · Krotka.ai by xSolia</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="css/theme.css" />
+  <link rel="stylesheet" href="css/theme.css?v=20260424-gsap" />
 </head>
 
 <body class="min-h-screen flex flex-col">
-  <!-- Shared navbar -->
   <div id="navbar">
     <header class="x-nav sticky top-0 z-50">
       <div class="container h-full flex items-center justify-between gap-4 py-3">
-        <!-- Logo + site name -->
         <a href="index.html" class="flex items-center gap-2">
-          <div
-            style="
-              width: 32px;
-              height: 32px;
-              border-radius: 999px;
-              background: linear-gradient(135deg, #ff9ac4, #7dd3fc);
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              font-weight: 700;
-              color: #fff;
-            "
-          >
-            k
-          </div>
+          <div style="width:32px;height:32px;border-radius:999px;background:linear-gradient(135deg,#ff9ac4,#7dd3fc);display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;">k</div>
           <div>
-            <div class="site-logo-text">xsolia.com</div>
+            <div class="site-logo-text">Krotka.ai by xSolia</div>
             <div class="site-subtitle">Early validation playground</div>
           </div>
         </a>
 
-        <!-- Right side: search + user -->
         <div class="flex-1 flex items-center justify-end gap-4">
-          <!-- Search bar -->
-          <form
-            id="navSearchForm"
-            class="hidden md:flex items-center gap-2"
-            style="max-width: 260px; width: 100%;"
-          >
-            <input
-              id="navSearchInput"
-              type="search"
-              class="x-input"
-              placeholder="Search topics…"
-              style="padding-right: 2.2rem;"
-            />
-            <button
-              type="submit"
-              style="
-                margin-left: -2.1rem;
-                font-size: 0.8rem;
-                color: #9ca3af;
-              "
-            >
-              🔍
-            </button>
+          <form id="navSearchForm" class="hidden md:flex items-center gap-2" style="max-width:260px;width:100%;">
+            <input id="navSearchInput" type="search" class="x-input" placeholder="Search topics..." style="padding-right:2.2rem;" />
+            <button type="submit" style="margin-left:-2.1rem;font-size:0.8rem;color:#9ca3af;">Search</button>
           </form>
-
-          <!-- User info -->
-          <div
-            id="userInfo"
-            class="flex items-center gap-2"
-            style="font-size: 0.8rem; color: #6b7280;"
-          >
-            <div
-              id="userAvatar"
-              style="
-                width: 28px;
-                height: 28px;
-                border-radius: 999px;
-                background: linear-gradient(135deg, #7dd3fc, #a5b4fc);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-weight: 600;
-                color: #fff;
-                text-transform: uppercase;
-              "
-            >
-              ?
-            </div>
+          <div id="userInfo" class="flex items-center gap-2" style="font-size:0.8rem;color:#6b7280;">
+            <div id="userAvatar" style="width:28px;height:28px;border-radius:999px;background:linear-gradient(135deg,#7dd3fc,#a5b4fc);display:flex;align-items:center;justify-content:center;font-weight:600;color:#fff;text-transform:uppercase;">?</div>
             <div class="flex flex-col">
               <span id="userNameLabel">Guest</span>
-              <span id="userRoleLabel" style="font-size: 0.7rem; color: #9ca3af;">
-                Not signed in
-              </span>
+              <span id="userRoleLabel" style="font-size:0.7rem;color:#9ca3af;">Not signed in</span>
             </div>
           </div>
         </div>
@@ -100,164 +37,352 @@
     </header>
   </div>
 
-  <!-- Main -->
-  <main class="flex-1 container" style="padding-top:1.5rem; padding-bottom:2rem;">
-    <section class="section" style="max-width:900px; margin:0 auto;">
-      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
+  <main class="flex-1 container workspace-shell" style="padding-top:1.5rem;padding-bottom:2rem;">
+    <section class="section" style="max-width:960px;margin:0 auto;">
+      <div class="workspace-hero motion-reveal">
         <div>
-          <h1 style="font-size:1.45rem; font-weight:600; margin-bottom:0.2rem;">Innovation pool</h1>
-          <p style="font-size:0.9rem; color:#6b7280; max-width:520px;">
-            A shared pool of half-baked ideas, problems, and hunches. Creators and testers can browse, save, and pick
-            ideas to explore.
+          <h1 style="font-size:1.45rem;font-weight:600;margin-bottom:0.2rem;">Innovation pool</h1>
+          <p style="font-size:0.9rem;color:#6b7280;max-width:620px;">
+            Browse rough ideas, vote on promising signals, save what matters, and turn strong ideas into structured validation topics.
           </p>
         </div>
-        <div style="font-size:0.8rem; color:#9ca3af; text-align:right;">
-          <p>Anyone with an account can post here.</p>
+        <div class="flex flex-col gap-2" style="align-items:flex-end;">
+          <a href="innovation-create.html" class="x-btn-primary" style="font-size:0.82rem;white-space:nowrap;">Post an idea</a>
+          <button id="savedToggle" type="button" class="x-btn-secondary" style="font-size:0.78rem;white-space:nowrap;">Saved ideas</button>
         </div>
       </div>
 
-      <div id="filters" class="flex flex-wrap gap-2 mb-3" style="font-size:0.8rem;">
-        <!-- Tag filters can be added later -->
+      <div class="x-card motion-reveal" style="margin-top:1rem;display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,0.7fr) minmax(0,0.9fr) auto;gap:0.7rem;align-items:end;">
+        <div>
+          <label style="font-size:0.75rem;color:#6b7280;">Search ideas</label>
+          <input id="innovationSearch" class="x-input" type="search" placeholder="Problem, product, audience, tag" />
+        </div>
+        <div>
+          <label style="font-size:0.75rem;color:#6b7280;">Sort</label>
+          <select id="sortSelect" class="x-input">
+            <option value="new">Newest</option>
+            <option value="top">Most upvoted</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:0.75rem;color:#6b7280;">Intent</label>
+          <select id="intentSelect" class="x-input">
+            <option value="">All intents</option>
+            <option value="open">Just sharing</option>
+            <option value="looking_for_team">Looking for collaborators</option>
+            <option value="just_idea">Free to take</option>
+          </select>
+        </div>
+        <button id="clearFilters" type="button" class="x-btn-secondary" style="font-size:0.8rem;">Clear</button>
+        <div id="activeTagWrap" class="hidden" style="grid-column:1 / -1;font-size:0.8rem;color:#6b7280;"></div>
       </div>
 
-      <div id="innovationList" class="flex flex-col gap-3"></div>
-      <p id="emptyHint" class="hidden" style="font-size:0.9rem; color:#9ca3af; margin-top:0.5rem;">
-        No innovations posted yet. Be the first one to share an idea.
-      </p>
-      <p id="error" class="hidden" style="font-size:0.9rem; color:#f97373; margin-top:0.5rem;"></p>
+      <div id="innovationList" class="flex flex-col gap-3 surface-list motion-reveal" style="margin-top:1rem;"></div>
+      <p id="listLimitHint" style="font-size:0.78rem;color:#9ca3af;margin-top:0.65rem;">Showing latest 50 ideas.</p>
+      <p id="emptyHint" class="hidden" style="font-size:0.9rem;color:#9ca3af;margin-top:0.8rem;">No innovations match this view.</p>
+      <p id="error" class="hidden" style="font-size:0.9rem;color:#f97373;margin-top:0.8rem;"></p>
     </section>
   </main>
 
-  <footer style="text-align:center; padding:1.5rem 0; font-size:0.75rem; color:#9ca3af;">
-    © 2025 xsolia.com
-  </footer>
+  <footer style="text-align:center;padding:1.5rem 0;font-size:0.75rem;color:var(--ink-faint);">© 2026 Krotka.ai by xSolia</footer>
 
-  <script src="js/app.js"></script>
+  <script src="js/app.js?v=20260424-gsap"></script>
   <script src="js/logo.js"></script>
   <script src="js/nav.js"></script>
   <script>
+    const session = XsoliaApp.getSession();
     const listEl = document.getElementById("innovationList");
     const emptyHintEl = document.getElementById("emptyHint");
     const errorEl = document.getElementById("error");
+    const searchEl = document.getElementById("innovationSearch");
+    const sortEl = document.getElementById("sortSelect");
+    const intentEl = document.getElementById("intentSelect");
+    const savedToggle = document.getElementById("savedToggle");
+    const clearFilters = document.getElementById("clearFilters");
+    const activeTagWrap = document.getElementById("activeTagWrap");
+    const listLimitHint = document.getElementById("listLimitHint");
+
+    const initialParams = new URLSearchParams(window.location.search);
+    const filters = {
+      q: (initialParams.get("q") || "").trim(),
+      sort: ((initialParams.get("sort") || "new").trim().toLowerCase() || "new"),
+      intent: ((initialParams.get("intent") || "").trim().toLowerCase() || ""),
+      tag: (initialParams.get("tag") || "").trim().toLowerCase(),
+    };
+    let savedOnly = false;
+    let loadTimer = null;
+
+    if (searchEl) searchEl.value = filters.q;
+    if (sortEl && ["new", "top"].includes(filters.sort)) sortEl.value = filters.sort;
+    else filters.sort = "new";
+    if (intentEl && ["", "open", "looking_for_team", "just_idea"].includes(filters.intent)) {
+      intentEl.value = filters.intent;
+    } else {
+      filters.intent = "";
+    }
+
+    function syncFilterQueryInUrl() {
+      const params = new URLSearchParams(window.location.search);
+      if (filters.q) params.set("q", filters.q);
+      else params.delete("q");
+      if (filters.sort && filters.sort !== "new") params.set("sort", filters.sort);
+      else params.delete("sort");
+      if (filters.intent) params.set("intent", filters.intent);
+      else params.delete("intent");
+      if (filters.tag) params.set("tag", filters.tag);
+      else params.delete("tag");
+      const query = params.toString();
+      window.history.replaceState({}, "", query ? `${window.location.pathname}?${query}` : window.location.pathname);
+    }
+
+    function requireLoginForAction() {
+      if (session.userId && session.accessToken) return true;
+      window.location.href = "login.html";
+      return false;
+    }
+
+    function buildListPath() {
+      if (savedOnly) return "/innovations/saved?limit=50&offset=0";
+      const params = new URLSearchParams({ limit: "50", offset: "0", sort: filters.sort || "new" });
+      if (filters.q) params.set("q", filters.q);
+      if (filters.intent) params.set("intent", filters.intent);
+      if (filters.tag) params.set("tag", filters.tag);
+      return `/innovations?${params.toString()}`;
+    }
+
+    function scheduleLoad() {
+      window.clearTimeout(loadTimer);
+      loadTimer = window.setTimeout(loadInnovations, 220);
+    }
 
     async function loadInnovations() {
+      if (savedOnly && !XsoliaApp.getSession().userId) {
+        window.location.href = "login.html";
+        return;
+      }
+
+      errorEl.classList.add("hidden");
+      emptyHintEl.classList.add("hidden");
+      listEl.innerHTML = "";
+      updateTagIndicator();
+      listLimitHint.textContent = savedOnly ? "Showing latest 50 saved ideas." : "Showing latest 50 ideas.";
+
       try {
-        const { response, data } = await XsoliaApp.apiFetch("/innovations");
+        const { response, data } = await XsoliaApp.apiFetch(buildListPath(), { auth: savedOnly });
         if (!response.ok) {
-          throw new Error(data.detail || "Failed to load innovations.");
+          throw new Error(XsoliaApp.formatApiError(data, "Failed to load innovations."));
         }
-        renderInnovations(data);
+        renderInnovations(Array.isArray(data) ? data : []);
       } catch (err) {
         errorEl.textContent = err.message || "Error loading innovations.";
         errorEl.classList.remove("hidden");
       }
     }
 
+    function updateTagIndicator() {
+      if (!filters.tag) {
+        activeTagWrap.classList.add("hidden");
+        activeTagWrap.textContent = "";
+        return;
+      }
+      activeTagWrap.classList.remove("hidden");
+      activeTagWrap.textContent = `Filtering by tag: ${filters.tag}`;
+    }
+
+    function createTagButton(tag) {
+      const pill = document.createElement("button");
+      pill.type = "button";
+      pill.className = "topic-chip";
+      pill.textContent = tag;
+      pill.addEventListener("click", () => {
+        filters.tag = tag;
+        savedOnly = false;
+        savedToggle.textContent = "Saved ideas";
+        syncFilterQueryInUrl();
+        loadInnovations();
+      });
+      return pill;
+    }
+
     function renderInnovations(items) {
       listEl.innerHTML = "";
-      errorEl.classList.add("hidden");
-
       if (!items.length) {
         emptyHintEl.classList.remove("hidden");
         return;
       }
-      emptyHintEl.classList.add("hidden");
 
       items.forEach((inv) => {
-        const card = document.createElement("div");
-        card.className = "x-card";
+        const card = document.createElement("article");
+        card.className = "x-card motion-reveal";
 
-        const header = document.createElement("div");
-        header.className = "flex items-center justify-between mb-1";
+        const top = document.createElement("div");
+        top.className = "flex items-start justify-between gap-3";
 
-        const titleEl = document.createElement("h2");
-        titleEl.style.fontSize = "1rem";
-        titleEl.style.fontWeight = "600";
-        titleEl.textContent = inv.title;
+        const titleWrap = document.createElement("div");
+        const title = document.createElement("a");
+        title.href = `innovation-detail.html?innovation_id=${inv.id}`;
+        title.style.fontSize = "1.05rem";
+        title.style.fontWeight = "800";
+        title.style.color = "var(--ink-strong)";
+        title.textContent = inv.title;
+        const meta = document.createElement("p");
+        meta.style.fontSize = "0.76rem";
+        meta.style.color = "#9ca3af";
+        const created = inv.created_at ? new Date(inv.created_at).toLocaleDateString() : "";
+        meta.textContent = `By user #${inv.author_id}${created ? ` · ${created}` : ""}`;
+        titleWrap.appendChild(title);
+        titleWrap.appendChild(meta);
 
-        const metaRight = document.createElement("div");
-        metaRight.style.fontSize = "0.75rem";
-        metaRight.style.color = "#9ca3af";
-        const created = inv.created_at ? new Date(inv.created_at) : null;
-        metaRight.textContent = created ? created.toLocaleDateString() : "";
+        const intentBadge = document.createElement("span");
+        intentBadge.className = "x-badge";
+        intentBadge.textContent = formatIntent(inv.intent);
+        top.appendChild(titleWrap);
+        top.appendChild(intentBadge);
 
-        header.appendChild(titleEl);
-        header.appendChild(metaRight);
-
-        const descEl = document.createElement("p");
-        descEl.style.fontSize = "0.9rem";
-        descEl.style.color = "#4b5563";
-        descEl.style.marginBottom = "0.4rem";
-        descEl.textContent = inv.description || "";
+        const desc = document.createElement("p");
+        desc.style.fontSize = "0.9rem";
+        desc.style.color = "#4b5563";
+        desc.style.margin = "0.55rem 0";
+        desc.textContent = inv.description || "";
 
         const tagsRow = document.createElement("div");
         tagsRow.className = "flex flex-wrap gap-1";
-        tagsRow.style.fontSize = "0.75rem";
-        const tags = inv.tags || [];
-        if (tags.length) {
-          tags.forEach((tag) => {
-            const pill = document.createElement("span");
-            pill.style.padding = "0.15rem 0.55rem";
-            pill.style.borderRadius = "999px";
-            pill.style.background = "#eef2ff";
-            pill.style.color = "#4338ca";
-            pill.textContent = tag;
-            tagsRow.appendChild(pill);
-          });
+        (inv.tags || []).forEach((tag) => tagsRow.appendChild(createTagButton(tag)));
+
+        const actions = document.createElement("div");
+        actions.className = "flex flex-wrap items-center justify-between gap-2";
+        actions.style.marginTop = "0.8rem";
+
+        const leftActions = document.createElement("div");
+        leftActions.className = "flex flex-wrap items-center gap-2";
+
+        const voteBtn = document.createElement("button");
+        voteBtn.type = "button";
+        voteBtn.className = "x-btn-secondary";
+        voteBtn.style.fontSize = "0.8rem";
+        voteBtn.textContent = `Upvote · ${inv.upvotes ?? 0}`;
+        if (String(inv.author_id) === String(session.userId)) {
+          voteBtn.disabled = true;
+          voteBtn.title = "You cannot upvote your own idea.";
+        }
+        voteBtn.addEventListener("click", () => voteInnovation(inv, voteBtn));
+
+        const saveBtn = document.createElement("button");
+        saveBtn.type = "button";
+        saveBtn.className = "x-btn-secondary";
+        saveBtn.style.fontSize = "0.8rem";
+        saveBtn.textContent = savedOnly ? "Unsave" : "Save";
+        saveBtn.addEventListener("click", () => toggleSaveInnovation(inv, saveBtn));
+
+        leftActions.appendChild(voteBtn);
+        leftActions.appendChild(saveBtn);
+
+        const rightActions = document.createElement("div");
+        rightActions.className = "flex flex-wrap items-center gap-2";
+        const detailLink = document.createElement("a");
+        detailLink.href = `innovation-detail.html?innovation_id=${inv.id}`;
+        detailLink.className = "x-btn-secondary";
+        detailLink.style.fontSize = "0.8rem";
+        detailLink.textContent = "Details";
+        rightActions.appendChild(detailLink);
+
+        if (session.role === "creator") {
+          const convertLink = document.createElement("a");
+          convertLink.href = `create.html?innovation_id=${inv.id}`;
+          convertLink.className = "x-btn-primary";
+          convertLink.style.fontSize = "0.8rem";
+          convertLink.textContent = "Turn into topic";
+          rightActions.appendChild(convertLink);
         }
 
-        const metaRow = document.createElement("div");
-        metaRow.className = "flex items-center justify-between";
-        metaRow.style.marginTop = "0.5rem";
-        metaRow.style.fontSize = "0.8rem";
+        actions.appendChild(leftActions);
+        actions.appendChild(rightActions);
 
-        const leftMeta = document.createElement("span");
-        leftMeta.style.color = "#6b7280";
-        leftMeta.textContent = `By user #${inv.author_id}`;
-
-        const rightMeta = document.createElement("div");
-        rightMeta.style.display = "flex";
-        rightMeta.style.alignItems = "center";
-        rightMeta.style.gap = "0.5rem";
-
-        const intentBadge = document.createElement("span");
-        intentBadge.style.fontSize = "0.75rem";
-        intentBadge.style.padding = "0.15rem 0.55rem";
-        intentBadge.style.borderRadius = "999px";
-        intentBadge.style.background = "#ecfeff";
-        intentBadge.style.color = "#155e75";
-        intentBadge.textContent = formatIntent(inv.intent);
-
-        const upvoteInfo = document.createElement("span");
-        upvoteInfo.style.color = "#9ca3af";
-        upvoteInfo.textContent = `Upvotes: ${inv.upvotes ?? 0}`;
-
-        rightMeta.appendChild(intentBadge);
-        rightMeta.appendChild(upvoteInfo);
-
-        metaRow.appendChild(leftMeta);
-        metaRow.appendChild(rightMeta);
-
-        card.appendChild(header);
-        card.appendChild(descEl);
-        if (tags.length) card.appendChild(tagsRow);
-        card.appendChild(metaRow);
-
+        card.appendChild(top);
+        card.appendChild(desc);
+        if ((inv.tags || []).length) card.appendChild(tagsRow);
+        card.appendChild(actions);
         listEl.appendChild(card);
       });
+      XsoliaApp.initMotion();
+    }
+
+    async function voteInnovation(inv, button) {
+      if (!requireLoginForAction()) return;
+      button.disabled = true;
+      try {
+        const { response, data } = await XsoliaApp.apiFetch(`/innovations/${inv.id}/vote`, { method: "POST", auth: true });
+        if (!response.ok) throw new Error(XsoliaApp.formatApiError(data, "Failed to upvote."));
+        button.textContent = `Upvote · ${data.upvotes ?? inv.upvotes ?? 0}`;
+      } catch (err) {
+        alert(err.message || "Failed to upvote.");
+      } finally {
+        if (String(inv.author_id) !== String(session.userId)) button.disabled = false;
+      }
+    }
+
+    async function toggleSaveInnovation(inv, button) {
+      if (!requireLoginForAction()) return;
+      button.disabled = true;
+      try {
+        const method = savedOnly ? "DELETE" : "POST";
+        const { response, data } = await XsoliaApp.apiFetch(`/innovations/${inv.id}/save`, { method, auth: true });
+        if (!response.ok) throw new Error(XsoliaApp.formatApiError(data, savedOnly ? "Failed to unsave." : "Failed to save."));
+        if (savedOnly) {
+          loadInnovations();
+          return;
+        }
+        button.textContent = data.saved ? "Saved" : "Save";
+      } catch (err) {
+        alert(err.message || "Failed to update saved idea.");
+      } finally {
+        button.disabled = false;
+      }
     }
 
     function formatIntent(intent) {
       switch (intent) {
-        case "looking_for_team":
-          return "Looking for collaborators";
-        case "just_idea":
-          return "Free to take";
+        case "looking_for_team": return "Looking for collaborators";
+        case "just_idea": return "Free to take";
         case "open":
-        default:
-          return "Just sharing";
+        default: return "Just sharing";
       }
     }
+
+    searchEl.addEventListener("input", () => {
+      filters.q = searchEl.value.trim();
+      syncFilterQueryInUrl();
+      scheduleLoad();
+    });
+    sortEl.addEventListener("change", () => {
+      filters.sort = sortEl.value || "new";
+      syncFilterQueryInUrl();
+      loadInnovations();
+    });
+    intentEl.addEventListener("change", () => {
+      filters.intent = intentEl.value || "";
+      syncFilterQueryInUrl();
+      loadInnovations();
+    });
+    savedToggle.addEventListener("click", () => {
+      if (!requireLoginForAction()) return;
+      savedOnly = !savedOnly;
+      savedToggle.textContent = savedOnly ? "All ideas" : "Saved ideas";
+      loadInnovations();
+    });
+    clearFilters.addEventListener("click", () => {
+      searchEl.value = "";
+      sortEl.value = "new";
+      intentEl.value = "";
+      filters.q = "";
+      filters.sort = "new";
+      filters.intent = "";
+      filters.tag = "";
+      savedOnly = false;
+      savedToggle.textContent = "Saved ideas";
+      syncFilterQueryInUrl();
+      loadInnovations();
+    });
 
     loadInnovations();
   </script>

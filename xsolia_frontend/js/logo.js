@@ -17,7 +17,7 @@
     const img = document.createElement('img');
     img.className = 'site-logo-mark-img';
     img.src = LOGO_PATHS.navMarkPng;
-    img.alt = 'xsolia logo';
+    img.alt = 'Krotka.ai by xSolia logo';
     img.width = 32;
     img.height = 32;
     img.decoding = 'async';

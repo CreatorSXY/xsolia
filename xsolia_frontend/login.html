@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Login · xsolia.com</title>
+  <title>Login · Krotka.ai by xSolia</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="css/theme.css">
+  <link rel="stylesheet" href="css/theme.css?v=20260424-gsap">
 </head>
 
 <body class="min-h-screen flex flex-col">
@@ -31,7 +31,7 @@
             k
           </div>
           <div>
-            <div class="site-logo-text">xsolia.com</div>
+            <div class="site-logo-text">Krotka.ai by xSolia</div>
             <div class="site-subtitle">Early validation playground</div>
           </div>
         </a>
@@ -98,24 +98,29 @@
     </header>
   </div>
 
-  <main class="flex-1 flex items-center justify-center p-4">
-    <div class="x-card" style="width:100%; max-width:380px;">
+  <main class="flex-1 auth-shell p-4">
+    <div class="x-card auth-panel motion-reveal" style="width:100%; max-width:380px;">
       <h1 style="font-size:1.4rem; font-weight:600; margin-bottom:0.6rem; text-align:center;">
         Log in
       </h1>
       <p style="font-size:0.85rem; color:#6b7280; text-align:center; margin-bottom:1rem;">
         Use the email and password you registered with.
       </p>
+      <p id="sessionNotice" style="font-size:0.82rem; color:#b45309; margin:-0.45rem 0 0.85rem; text-align:center; display:none;">
+        Session expired, please log in again.
+      </p>
 
-      <form id="loginForm" class="space-y-4">
+      <form id="loginForm" class="space-y-4" novalidate>
         <div>
           <label style="font-size:0.85rem; color:#6b7280;">Email</label>
           <input id="email" type="email" required class="x-input" />
+          <span id="err-email" style="display:none; font-size:0.75rem; color:#f97373;"></span>
         </div>
 
         <div>
           <label style="font-size:0.85rem; color:#6b7280;">Password</label>
           <input id="password" type="password" required class="x-input" />
+          <span id="err-password" style="display:none; font-size:0.75rem; color:#f97373;"></span>
         </div>
 
         <button type="submit" class="x-btn-primary" style="width:100%; justify-content:center;">
@@ -132,43 +137,101 @@
     </div>
   </main>
 
-  <footer style="text-align:center; padding:1.5rem 0; font-size:0.75rem; color:#9ca3af;">
-    © 2025 xsolia.com
+  <footer style="text-align:center; padding:1.5rem 0; font-size:0.75rem; color:var(--ink-faint);">
+    © 2026 Krotka.ai by xSolia
   </footer>
 
-  <script src="js/app.js"></script>
+  <script src="js/app.js?v=20260424-gsap"></script>
   <script src="js/logo.js"></script>
   <script src="js/nav.js"></script>
   <script>
     // Preselect role for registration link
     const params = new URLSearchParams(window.location.search);
     const roleParam = params.get('role');
+    const expiredParam = params.get('expired');
     const registerLink = document.getElementById('registerLink');
+    const sessionNotice = document.getElementById('sessionNotice');
     if (roleParam) {
       registerLink.href = `register.html?role=${roleParam}`;
+    }
+    if (expiredParam === '1' && sessionNotice) {
+      sessionNotice.style.display = 'block';
+    }
+
+    function clearLoginFieldErrors() {
+      ['email', 'password'].forEach((id) => {
+        const errorNode = document.getElementById(`err-${id}`);
+        const input = document.getElementById(id);
+        if (errorNode) {
+          errorNode.textContent = '';
+          errorNode.style.display = 'none';
+        }
+        if (input) input.style.outline = '';
+      });
+    }
+
+    function applyLoginFieldErrors(fieldErrors) {
+      ['email', 'password'].forEach((id) => {
+        const message = fieldErrors[id] || '';
+        const errorNode = document.getElementById(`err-${id}`);
+        const input = document.getElementById(id);
+        if (errorNode) {
+          errorNode.textContent = message;
+          errorNode.style.display = message ? 'block' : 'none';
+        }
+        if (input) input.style.outline = message ? '1.5px solid #f97373' : '';
+      });
     }
 
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const email = document.getElementById('email').value;
       const password = document.getElementById('password').value;
-
-      const { response, data } = await XsoliaApp.apiFetch('/login', {
-        method: 'POST',
-        body: { email, password }
-      });
       const errorEl = document.getElementById('error');
+      const submitBtn = e.target.querySelector('button[type="submit"]');
+      const originalText = submitBtn ? submitBtn.textContent : 'Continue';
+      errorEl.style.display = 'none';
+      clearLoginFieldErrors();
 
-      if (!response.ok) {
-        errorEl.textContent = data.detail || 'Login failed';
+      const clientErrors = {};
+      const cleanEmail = email.trim().toLowerCase();
+      if (!cleanEmail) clientErrors.email = 'Email is required.';
+      else if (!cleanEmail.includes('@')) clientErrors.email = 'Invalid email.';
+      if (!password) clientErrors.password = 'Password is required.';
+      if (Object.keys(clientErrors).length > 0) {
+        applyLoginFieldErrors(clientErrors);
+        errorEl.textContent = 'Please fix the errors above.';
         errorEl.style.display = 'block';
-      } else {
-        XsoliaApp.setSession(data);
+        return;
+      }
 
-        if (data.role === 'creator') {
-          window.location.href = 'creator-dashboard.html';
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Please wait...';
+      }
+
+      try {
+        const { response, data } = await XsoliaApp.apiFetch('/login', {
+          method: 'POST',
+          body: { email: cleanEmail, password }
+        });
+        if (!response.ok) {
+          errorEl.textContent = XsoliaApp.formatApiError(data, 'Login failed');
+          errorEl.style.display = 'block';
+          applyLoginFieldErrors(XsoliaApp.getFieldErrors(data));
         } else {
-          window.location.href = 'tester-dashboard.html';
+          XsoliaApp.setSession(data);
+
+          if (data.role === 'creator') {
+            window.location.href = 'creator-dashboard.html';
+          } else {
+            window.location.href = 'tester-dashboard.html';
+          }
+        }
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = originalText;
         }
       }
     });

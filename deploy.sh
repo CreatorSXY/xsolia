@@ -71,11 +71,18 @@ fi
 if [[ -f alembic.ini ]]; then
   log "Applying DB migrations (alembic upgrade head)"
   alembic upgrade head
+else
+  # Current schema cleanup runs inside FastAPI lifespan on service startup.
+  log "No alembic.ini found; relying on application startup migrations."
 fi
 
 log "Restarting backend service ($SERVICE_NAME)"
 sudo systemctl restart "$SERVICE_NAME"
 sudo systemctl --no-pager --full status "$SERVICE_NAME" | sed -n '1,12p'
+SERVICE_EXEC_START="$(sudo systemctl show "$SERVICE_NAME" --property=ExecStart --value 2>/dev/null || true)"
+if [[ "$SERVICE_EXEC_START" == *"gunicorn"* ]] && printf '%s' "$SERVICE_EXEC_START" | grep -Eq '(^|[[:space:]])(-w|--workers[= ]?)[2-9]'; then
+  echo "Warning: $SERVICE_NAME appears to run multiple workers. In-memory auth rate limiting is per worker; use one worker or move rate limit state to Redis/database." >&2
+fi
 
 log "Publishing frontend"
 if [[ -f "$FRONTEND_DIR/package.json" ]]; then

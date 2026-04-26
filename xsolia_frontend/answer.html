@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Provide Feedback · xsolia.com</title>
+  <title>Provide Feedback · Krotka.ai by xSolia</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="css/theme.css">
+  <link rel="stylesheet" href="css/theme.css?v=20260424-gsap">
 </head>
 
 <body class="min-h-screen flex flex-col">
@@ -31,7 +31,7 @@
             k
           </div>
           <div>
-            <div class="site-logo-text">xsolia.com</div>
+            <div class="site-logo-text">Krotka.ai by xSolia</div>
             <div class="site-subtitle">Early validation playground</div>
           </div>
         </a>
@@ -99,13 +99,14 @@
   </div>
 
   <!-- Main Content -->
-  <main class="flex-1 container" style="padding-top:1.5rem; padding-bottom:2rem;">
-    <section class="section" style="max-width:640px; margin:0 auto;">
-      <div class="x-card" id="wrapper">
+  <main class="flex-1 container form-shell" style="padding-top:1.5rem; padding-bottom:2rem;">
+    <section class="section" style="width:100%; max-width:680px; margin:0 auto;">
+      <div class="x-card form-panel motion-reveal" id="wrapper">
         <div style="margin-bottom:1rem;">
           <h1 id="projTitle" style="font-size:1.4rem; font-weight:600; margin-bottom:0.25rem;">Loading...</h1>
           <p id="projDesc" style="font-size:0.9rem; color:#4b5563; margin-bottom:0.25rem;"></p>
           <p id="projMeta" style="font-size:0.8rem; color:#6b7280;"></p>
+          <div id="projImages" style="display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:0.5rem; margin-top:0.7rem;"></div>
         </div>
 
         <form id="answerForm" class="space-y-4 hidden">
@@ -119,6 +120,7 @@
               <option value="2">2 - Not very interested</option>
               <option value="1">1 - Not interested at all</option>
             </select>
+            <span id="err-interest" style="display:none; font-size:0.75rem; color:#f97373;"></span>
           </div>
 
           <!-- Dynamic question fields -->
@@ -127,6 +129,7 @@
               Questions from the creator
             </label>
             <div id="questionsContainer" class="space-y-3"></div>
+            <span id="err-answers" style="display:none; font-size:0.75rem; color:#f97373;"></span>
           </div>
 
           <!-- Price range (optional) -->
@@ -151,6 +154,8 @@
                 style="max-width:120px;"
               />
             </div>
+            <span id="err-priceMin" style="display:none; font-size:0.75rem; color:#f97373;"></span>
+            <span id="err-priceMax" style="display:none; font-size:0.75rem; color:#f97373;"></span>
           </div>
 
           <button
@@ -168,19 +173,15 @@
     </section>
   </main>
 
-  <footer style="text-align:center; padding:1.5rem 0; font-size:0.75rem; color:#9ca3af;">
-    © 2025 xsolia.com
+  <footer style="text-align:center; padding:1.5rem 0; font-size:0.75rem; color:var(--ink-faint);">
+    © 2026 Krotka.ai by xSolia
   </footer>
 
-  <script src="js/app.js"></script>
+  <script src="js/app.js?v=20260424-gsap"></script>
   <script src="js/logo.js"></script>
   <script src="js/nav.js"></script>
   <script>
-    // Login check
-    const session = XsoliaApp.requireAuth({ redirect: 'login.html' });
-    if (!session) {
-      throw new Error('Authentication required');
-    }
+    const session = XsoliaApp.getSession();
 
     // Get project ID
     const params = new URLSearchParams(window.location.search);
@@ -194,21 +195,42 @@
       const titleEl = document.getElementById('projTitle');
       const descEl = document.getElementById('projDesc');
       const metaEl = document.getElementById('projMeta');
+      const imagesEl = document.getElementById('projImages');
       const formEl = document.getElementById('answerForm');
       const qsContainer = document.getElementById('questionsContainer');
       const errorEl = document.getElementById('error');
 
       try {
-        const { response, data } = await XsoliaApp.apiFetch(`/projects/${projectId}`);
-        if (!response.ok) {
-          throw new Error(data.detail || 'Failed to load project');
-        }
+          const { response, data } = await XsoliaApp.apiFetch(`/projects/${projectId}`, {
+            auth: Boolean(session && session.accessToken),
+            disableAuthRedirect: true,
+          });
+          if (response.status === 401 || response.status === 403) {
+            throw new Error('This validation topic is private or tester-only. Please log in with the right account to continue.');
+          }
+          if (!response.ok) {
+            throw new Error(XsoliaApp.formatApiError(data, 'Failed to load project'));
+          }
 
         const proj = data;
 
         titleEl.textContent = proj.title;
         descEl.textContent = proj.description || '';
         metaEl.textContent = `Target: ${proj.target_audience || 'Not specified'} · Budget: $${proj.budget || 0}`;
+        imagesEl.innerHTML = '';
+        const imageUrls = Array.isArray(proj.image_urls) ? proj.image_urls : [];
+        imageUrls.slice(0, 3).forEach((url, index) => {
+          const image = document.createElement('img');
+          image.src = url;
+          image.alt = `${proj.title || 'Topic'} image ${index + 1}`;
+          image.style.width = '100%';
+          image.style.height = '102px';
+          image.style.objectFit = 'cover';
+          image.style.borderRadius = '10px';
+          image.style.border = '1px solid rgba(42,39,34,0.16)';
+          image.style.display = 'block';
+          imagesEl.appendChild(image);
+        });
 
         qsContainer.innerHTML = '';
         if (proj.questions && proj.questions.length > 0) {
@@ -242,6 +264,44 @@
 
     loadProject();
 
+    const ANSWER_FIELD_MAP = {
+      interest: 'interest_level',
+      answers: 'answers',
+      priceMin: 'price_min',
+      priceMax: 'price_max',
+    };
+
+    function clearAnswerFormErrors() {
+      document.querySelectorAll('[id^="err-"]').forEach((el) => {
+        el.textContent = '';
+        el.style.display = 'none';
+      });
+      ['interest', 'priceMin', 'priceMax'].forEach((id) => {
+        const input = document.getElementById(id);
+        if (input) input.style.outline = '';
+      });
+      document.getElementById('questionsContainer').style.outline = '';
+    }
+
+    function applyAnswerFieldErrors(fieldErrors) {
+      Object.entries(ANSWER_FIELD_MAP).forEach(([elementId, fieldKey]) => {
+        const message = fieldErrors[fieldKey] || '';
+        const errorNode = document.getElementById(`err-${elementId}`);
+        const input = document.getElementById(elementId);
+
+        if (errorNode) {
+          errorNode.textContent = message;
+          errorNode.style.display = message ? 'block' : 'none';
+        }
+        if (input) {
+          input.style.outline = message ? '1.5px solid #f97373' : '';
+        }
+      });
+
+      const answersError = fieldErrors.answers || '';
+      document.getElementById('questionsContainer').style.outline = answersError ? '1.5px solid #f97373' : '';
+    }
+
     // Submit feedback
     document.getElementById('answerForm').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -265,21 +325,64 @@
       const successEl = document.getElementById('success');
       errorEl.style.display = 'none';
       successEl.style.display = 'none';
+      clearAnswerFormErrors();
+
+      const clientErrors = {};
+      if (!session.userId || !session.accessToken) {
+        errorEl.textContent = 'This validation topic is private or tester-only. Please log in with the right account to continue.';
+        errorEl.style.display = 'block';
+        setTimeout(() => {
+          window.location.href = `login.html?next=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+        }, 900);
+        return;
+      }
+      if (session.role !== 'tester') {
+        errorEl.textContent = 'Only tester accounts can submit feedback.';
+        errorEl.style.display = 'block';
+        return;
+      }
+      if (interest < 1 || interest > 5) clientErrors.interest_level = 'Interest must be between 1 and 5.';
+      if (!answerTexts.some(Boolean)) clientErrors.answers = 'Please answer at least one question.';
+      else if (answerTexts.some((answer) => answer.length > 3000)) clientErrors.answers = 'Each answer must be 3000 characters or fewer.';
+      const priceMinValue = Number(priceMinStr);
+      const priceMaxValue = Number(priceMaxStr);
+      if (priceMinStr && Number.isNaN(priceMinValue)) clientErrors.price_min = 'Minimum price must be a number.';
+      else if (priceMinStr && priceMinValue < 0) clientErrors.price_min = 'Minimum price cannot be negative.';
+      if (priceMaxStr && Number.isNaN(priceMaxValue)) clientErrors.price_max = 'Maximum price must be a number.';
+      else if (priceMaxStr && priceMaxValue < 0) clientErrors.price_max = 'Maximum price cannot be negative.';
+      if (priceMinStr && priceMaxStr && !Number.isNaN(priceMinValue) && !Number.isNaN(priceMaxValue) && priceMinValue > priceMaxValue) {
+        clientErrors.price_min = 'Minimum price cannot be greater than maximum price.';
+        clientErrors.price_max = 'Maximum price must be greater than minimum price.';
+      }
+      if (Object.keys(clientErrors).length > 0) {
+        applyAnswerFieldErrors(clientErrors);
+        errorEl.textContent = 'Please fix the errors above.';
+        errorEl.style.display = 'block';
+        return;
+      }
 
       try {
         const { response, data } = await XsoliaApp.apiFetch(`/projects/${projectId}/respond`, {
           method: 'POST',
           auth: true,
           body: payload
-        });
-        if (!response.ok) {
-          throw new Error(data.detail || 'Failed to submit feedback.');
-        }
-        successEl.textContent = 'Thank you for your feedback! Returning to the topic list in 3 seconds.';
-        successEl.style.display = 'block';
+          });
+          if (!response.ok) {
+            errorEl.textContent = XsoliaApp.formatApiError(data, 'Failed to submit feedback.');
+            errorEl.style.display = 'block';
+            applyAnswerFieldErrors(XsoliaApp.getFieldErrors(data));
+            return;
+          }
+	        successEl.textContent = 'Thank you for your feedback! Returning to the topic list in 3 seconds.';
+	        successEl.style.display = 'block';
+          try {
+            sessionStorage.removeItem('xsolia_responded_projects_cache_v1');
+          } catch (_err) {
+            // Non-blocking cache cleanup.
+          }
 
-        setTimeout(() => {
-          window.location.href = 'explore.html';
+	        setTimeout(() => {
+	          window.location.href = 'explore.html';
         }, 3000);
       } catch (err) {
         errorEl.textContent = err.message || 'An error occurred during submission.';

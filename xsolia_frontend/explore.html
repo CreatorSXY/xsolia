@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Browse Validation Topics · xsolia.com</title>
+  <title>Browse Validation Topics · Krotka.ai by xSolia</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="css/theme.css">
+  <link rel="stylesheet" href="css/theme.css?v=20260424-gsap">
   <style>
     .filter-wrap {
       display: flex;
@@ -116,7 +116,7 @@
             k
           </div>
           <div>
-            <div class="site-logo-text">xsolia.com</div>
+            <div class="site-logo-text">Krotka.ai by xSolia</div>
             <div class="site-subtitle">Validation workspace</div>
           </div>
         </a>
@@ -178,16 +178,25 @@
     </header>
   </div>
 
-  <main class="flex-1 container" style="padding-top:1.7rem; padding-bottom:2rem;">
-    <section>
+  <main class="flex-1 container workspace-shell" style="padding-top:1.7rem; padding-bottom:2rem;">
+    <section class="workspace-hero motion-reveal">
       <h1 style="font-size:1.55rem; line-height:1.1; margin:0; font-weight:800; color:#1f1b18;">Active Validation Topics</h1>
       <p style="font-size:0.9rem; color:#6e6259; margin-top:0.42rem; max-width:58ch;">
         Scan open projects, pick one aligned with your experience, and submit practical feedback in minutes.
       </p>
     </section>
 
-    <section class="section" style="margin-top:1.05rem;">
-      <div style="font-size:0.78rem; color:#74685d; margin-bottom:0.45rem;">Filter by domain</div>
+    <section class="section motion-reveal" style="margin-top:1.05rem;">
+      <div class="flex flex-wrap items-end justify-between gap-2" style="margin-bottom:0.45rem;">
+        <div style="font-size:0.78rem; color:#74685d;">Filter by domain</div>
+        <div>
+          <label for="projectSort" style="font-size:0.75rem; color:#74685d; margin-right:0.35rem;">Sort</label>
+          <select id="projectSort" class="x-input" style="display:inline-flex; width:auto; min-width:140px; padding:0.32rem 0.6rem; font-size:0.78rem;">
+            <option value="new">Newest</option>
+            <option value="active">Most active</option>
+          </select>
+        </div>
+      </div>
       <div id="categoryFilters" class="filter-wrap">
         <button type="button" class="filter-pill filter-pill-active" data-main="">All</button>
         <button type="button" class="filter-pill" data-main="digital">Digital</button>
@@ -199,7 +208,7 @@
       </div>
     </section>
 
-    <section class="section" style="margin-top:1rem;">
+    <section class="section motion-reveal" style="margin-top:1rem;">
       <div id="projectsContainer" class="topic-list"></div>
       <p id="emptyHint" class="hidden" style="font-size:0.9rem; color:#8f8276; margin-top:0.75rem;">
         No topics under this filter.
@@ -208,18 +217,15 @@
     </section>
   </main>
 
-  <footer style="text-align:center; padding:1.5rem 0; font-size:0.75rem; color:#9ca3af;">
-    © 2026 xsolia.com
+  <footer style="text-align:center; padding:1.5rem 0; font-size:0.75rem; color:var(--ink-faint);">
+    © 2026 Krotka.ai by xSolia
   </footer>
 
-  <script src="js/app.js"></script>
+  <script src="js/app.js?v=20260424-gsap"></script>
   <script src="js/logo.js"></script>
   <script src="js/nav.js"></script>
   <script>
-    const session = XsoliaApp.requireAuth({ redirect: "login.html" });
-    if (!session) {
-      throw new Error("Authentication required");
-    }
+    const session = XsoliaApp.getSession();
 
     const SUBCATEGORY_LABELS = {
       software: "Software & digital tools",
@@ -255,12 +261,37 @@
       health_habit: "Habit building",
     };
 
+    const initialParams = new URLSearchParams(window.location.search);
     let allProjects = [];
+    const respondedProjectIds = new Set();
     let currentMainCategory = "";
+    const filters = {
+      q: (initialParams.get("q") || "").trim(),
+      sort: ((initialParams.get("sort") || "new").trim().toLowerCase() || "new"),
+    };
+    const RESPONDED_CACHE_KEY = "xsolia_responded_projects_cache_v1";
+    const RESPONDED_CACHE_TTL_MS = 5 * 60 * 1000;
 
     const container = document.getElementById("projectsContainer");
     const emptyHint = document.getElementById("emptyHint");
     const errorEl = document.getElementById("error");
+    const sortSelectEl = document.getElementById("projectSort");
+
+    if (!["new", "active"].includes(filters.sort)) {
+      filters.sort = "new";
+    }
+    if (sortSelectEl) {
+      sortSelectEl.value = filters.sort;
+      sortSelectEl.addEventListener("change", async () => {
+        filters.sort = sortSelectEl.value || "new";
+        const params = new URLSearchParams(window.location.search);
+        if (filters.sort === "new") params.delete("sort");
+        else params.set("sort", filters.sort);
+        const query = params.toString();
+        window.history.replaceState({}, "", query ? `${window.location.pathname}?${query}` : window.location.pathname);
+        await fetchProjects();
+      });
+    }
 
     function getSubcategoryLabel(subcategory) {
       if (!subcategory) return "";
@@ -277,7 +308,7 @@
 
     function createTopicItem(project) {
       const wrapper = document.createElement("article");
-      wrapper.className = "topic-item";
+      wrapper.className = "topic-item motion-reveal";
 
       const left = document.createElement("div");
 
@@ -294,6 +325,12 @@
       mainChip.className = "topic-chip";
       mainChip.textContent = project.main_category || "testing";
       chips.appendChild(mainChip);
+      if (project.visibility === "tester_only") {
+        const visibilityChip = document.createElement("span");
+        visibilityChip.className = "topic-chip";
+        visibilityChip.textContent = "Tester-only";
+        chips.appendChild(visibilityChip);
+      }
 
       const subcategoryLabel = getSubcategoryLabel(project.subcategory);
       if (subcategoryLabel) {
@@ -308,16 +345,52 @@
       const questionCount = Array.isArray(project.questions) ? project.questions.length : 0;
       meta.textContent = `Target: ${project.target_audience || "Not specified"} · Questions: ${questionCount} · Budget: $${project.budget || 0}`;
 
+      let respondedChip = null;
+      if (respondedProjectIds.has(project.id)) {
+        respondedChip = document.createElement("span");
+        respondedChip.className = "x-badge";
+        respondedChip.style.marginTop = "0.45rem";
+        respondedChip.style.display = "inline-flex";
+        respondedChip.textContent = "✓ Responded";
+      }
+
+      const imageUrls = Array.isArray(project.image_urls) ? project.image_urls : [];
+      let preview = null;
+      if (imageUrls.length > 0) {
+        preview = document.createElement("div");
+        preview.style.margin = "0.45rem 0";
+
+        const image = document.createElement("img");
+        image.src = imageUrls[0];
+        image.alt = `${project.title || "Topic"} preview`;
+        image.style.width = "min(210px, 100%)";
+        image.style.height = "96px";
+        image.style.objectFit = "cover";
+        image.style.borderRadius = "10px";
+        image.style.border = "1px solid rgba(42,39,34,0.16)";
+        image.style.display = "block";
+        preview.appendChild(image);
+      }
+
       left.appendChild(title);
       left.appendChild(desc);
+      if (preview) left.appendChild(preview);
       left.appendChild(chips);
       left.appendChild(meta);
+      if (respondedChip) left.appendChild(respondedChip);
 
       const action = document.createElement("a");
-      action.href = `answer.html?project_id=${project.id}`;
-      action.className = "x-btn-primary";
-      action.style.fontSize = "0.82rem";
-      action.textContent = "Answer";
+      if (respondedProjectIds.has(project.id)) {
+        action.href = "tester-dashboard.html";
+        action.className = "x-btn-secondary";
+        action.style.fontSize = "0.82rem";
+        action.textContent = "View history";
+      } else {
+        action.href = `answer.html?project_id=${project.id}`;
+        action.className = "x-btn-primary";
+        action.style.fontSize = "0.82rem";
+        action.textContent = "Answer";
+      }
 
       wrapper.appendChild(left);
       wrapper.appendChild(action);
@@ -338,6 +411,7 @@
       visible.forEach((project) => {
         container.appendChild(createTopicItem(project));
       });
+      XsoliaApp.initMotion();
     }
 
     function setupFilters() {
@@ -355,10 +429,15 @@
     async function fetchProjects() {
       container.textContent = "";
       try {
-        const { response, data } = await XsoliaApp.apiFetch("/projects/active");
-        if (!response.ok) {
-          throw new Error((data && data.detail) || "Failed to load topics");
-        }
+          const params = new URLSearchParams({ limit: "100", offset: "0", sort: filters.sort });
+          if (filters.q) params.set("q", filters.q);
+          const { response, data } = await XsoliaApp.apiFetch(`/projects/active?${params.toString()}`, {
+            auth: Boolean(session && session.accessToken),
+            disableAuthRedirect: true,
+          });
+          if (!response.ok) {
+            throw new Error(XsoliaApp.formatApiError(data, "Failed to load topics"));
+          }
         allProjects = Array.isArray(data) ? data : [];
         renderProjects();
       } catch (error) {
@@ -367,8 +446,36 @@
       }
     }
 
+    async function fetchRespondedProjects() {
+      if (!session || session.role !== "tester" || !session.accessToken) return;
+      try {
+        const cached = sessionStorage.getItem(RESPONDED_CACHE_KEY);
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            if (parsed && Array.isArray(parsed.ids) && Number(parsed.ts) > 0 && (Date.now() - Number(parsed.ts)) < RESPONDED_CACHE_TTL_MS) {
+              parsed.ids.forEach((id) => respondedProjectIds.add(Number(id)));
+              return;
+            }
+          } catch (_parseErr) {
+            sessionStorage.removeItem(RESPONDED_CACHE_KEY);
+          }
+        }
+        const { response, data } = await XsoliaApp.apiFetch("/me/responded-project-ids", { auth: true });
+        if (!response.ok) return;
+        const ids = Array.isArray(data) ? data : [];
+        ids.forEach((id) => respondedProjectIds.add(Number(id)));
+        sessionStorage.setItem(RESPONDED_CACHE_KEY, JSON.stringify({ ts: Date.now(), ids }));
+      } catch (_error) {
+        // Non-blocking: list still renders even if this hint fails.
+      }
+    }
+
     setupFilters();
-    fetchProjects();
+    (async () => {
+      await fetchRespondedProjects();
+      await fetchProjects();
+    })();
   </script>
 </body>
 </html>

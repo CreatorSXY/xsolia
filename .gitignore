@@ -13,3 +13,30 @@ __pycache__/
 
 # Logs
 *.log
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Python virtual environments
+venv/
+env/
+
+# Local databases
+*.sqlite
+
+# Logs
+logs/
+
+# Uploads / user-generated content
+uploads/
+static/uploads/
+media/
+
+# OS / IDE
+.vscode/
+.idea/
+
+# Archives
+*.zip
