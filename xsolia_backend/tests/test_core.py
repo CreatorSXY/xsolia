@@ -455,6 +455,110 @@ def test_project_stats_distribution_percentiles_and_acceptance_rate():
         assert data["price_percentiles"]["p50"] == 162.5
         assert data["acceptance_rate"] == 0.5
         assert data["interest_stddev"] > 0
+        assert data["validation_score"] == 52
+        assert data["decision_suggestion"] == "pivot"
+    finally:
+        main.app.dependency_overrides = {}
+
+
+def test_trending_projects_endpoint_returns_ranked_projects():
+    client = _make_client()
+    try:
+        creator = {
+            "email": "creator-trending@example.com",
+            "name": "Creator Trending",
+            "password": "pass1234",
+            "role": "creator",
+            "subscription": "creator_basic",
+        }
+        testers = []
+        for idx in range(1, 4):
+            testers.append(
+                {
+                    "email": f"tester-trending-{idx}@example.com",
+                    "name": f"Tester {idx}",
+                    "password": "pass1234",
+                    "role": "tester",
+                    "subscription": "free",
+                }
+            )
+
+        _register(client, creator)
+        for tester in testers:
+            _register(client, tester)
+
+        creator_login = _login(client, creator["email"], creator["password"])
+        tester_tokens = [
+            _login(client, tester["email"], tester["password"])["access_token"]
+            for tester in testers
+        ]
+
+        old_project = client.post(
+            "/projects",
+            json={
+                "title": "Old signal",
+                "description": "A valid description for old trending project signal.",
+                "target_audience": "Builders",
+                "questions": ["Q1"],
+                "budget": 20,
+                "main_category": "digital",
+                "subcategory": "saas",
+            },
+            headers=_auth_headers(creator_login["access_token"]),
+        )
+        new_project = client.post(
+            "/projects",
+            json={
+                "title": "Fresh signal",
+                "description": "A valid description for fresh trending project signal.",
+                "target_audience": "Builders",
+                "questions": ["Q1"],
+                "budget": 20,
+                "main_category": "digital",
+                "subcategory": "saas",
+            },
+            headers=_auth_headers(creator_login["access_token"]),
+        )
+        assert old_project.status_code == 200
+        assert new_project.status_code == 200
+        old_project_id = old_project.json()["id"]
+        new_project_id = new_project.json()["id"]
+
+        for token in tester_tokens:
+            old_response = client.post(
+                f"/projects/{old_project_id}/respond",
+                json={"interest_level": 1, "answers": ["Low interest"]},
+                headers=_auth_headers(token),
+            )
+            assert old_response.status_code == 200
+
+        for token in tester_tokens[:2]:
+            new_response = client.post(
+                f"/projects/{new_project_id}/respond",
+                json={"interest_level": 3, "answers": ["Medium interest"]},
+                headers=_auth_headers(token),
+            )
+            assert new_response.status_code == 200
+
+        override = main.app.dependency_overrides[main.get_session]
+        session_gen = override()
+        session = next(session_gen)
+        old_responses = session.exec(
+            main.select(main.Response).where(main.Response.project_id == old_project_id)
+        ).all()
+        for row in old_responses:
+            row.created_at = main.utc_now() - main.timedelta(days=10)
+            session.add(row)
+        session.commit()
+        session_gen.close()
+
+        trending = client.get("/projects/trending?limit=6")
+        assert trending.status_code == 200
+        payload = trending.json()
+        assert len(payload) >= 2
+        assert payload[0]["id"] == new_project_id
+        assert "responses_count" in payload[0]
+        assert "avg_interest" in payload[0]
     finally:
         main.app.dependency_overrides = {}
 
@@ -757,6 +861,207 @@ def test_response_like_comment_and_me_responses_flow():
         main.app.dependency_overrides = {}
 
 
+def test_contribution_score_updates_on_submit_like_and_accept():
+    client = _make_client()
+    try:
+        creator = {
+            "email": "creator-contribution@example.com",
+            "name": "Creator",
+            "password": "pass1234",
+            "role": "creator",
+            "subscription": "creator_basic",
+        }
+        tester_a = {
+            "email": "tester-contribution-a@example.com",
+            "name": "Tester A",
+            "password": "pass1234",
+            "role": "tester",
+            "subscription": "free",
+        }
+        tester_b = {
+            "email": "tester-contribution-b@example.com",
+            "name": "Tester B",
+            "password": "pass1234",
+            "role": "tester",
+            "subscription": "free",
+        }
+        _register(client, creator)
+        _register(client, tester_a)
+        _register(client, tester_b)
+
+        creator_login = _login(client, creator["email"], creator["password"])
+        tester_a_login = _login(client, tester_a["email"], tester_a["password"])
+        tester_b_login = _login(client, tester_b["email"], tester_b["password"])
+
+        created = client.post(
+            "/projects",
+            json={
+                "title": "Contribution score topic",
+                "description": "A valid description for contribution score calculations.",
+                "target_audience": "Builders",
+                "questions": ["How useful is this?"],
+                "budget": 20,
+                "main_category": "digital",
+                "subcategory": "saas",
+            },
+            headers=_auth_headers(creator_login["access_token"]),
+        )
+        assert created.status_code == 200
+        project_id = created.json()["id"]
+
+        long_answer = "Very useful signal. " * 14  # > 200 chars for non-zero length score.
+        submitted = client.post(
+            f"/projects/{project_id}/respond",
+            json={"interest_level": 4, "answers": [long_answer]},
+            headers=_auth_headers(tester_a_login["access_token"]),
+        )
+        assert submitted.status_code == 200
+        response_id = submitted.json()["response_id"]
+
+        listed_after_submit = client.get(
+            f"/projects/{project_id}/responses",
+            headers=_auth_headers(creator_login["access_token"]),
+        )
+        assert listed_after_submit.status_code == 200
+        row = listed_after_submit.json()[0]
+        assert row["id"] == response_id
+        assert row["contribution_score"] > 0
+        submit_score = row["contribution_score"]
+
+        liked = client.post(
+            f"/responses/{response_id}/like",
+            headers=_auth_headers(tester_b_login["access_token"]),
+        )
+        assert liked.status_code == 200
+
+        listed_after_like = client.get(
+            f"/projects/{project_id}/responses",
+            headers=_auth_headers(creator_login["access_token"]),
+        )
+        assert listed_after_like.status_code == 200
+        like_score = listed_after_like.json()[0]["contribution_score"]
+        assert like_score >= submit_score + 5
+
+        accepted = client.post(
+            f"/responses/{response_id}/accept",
+            headers=_auth_headers(creator_login["access_token"]),
+        )
+        assert accepted.status_code == 200
+
+        listed_after_accept = client.get(
+            f"/projects/{project_id}/responses",
+            headers=_auth_headers(creator_login["access_token"]),
+        )
+        assert listed_after_accept.status_code == 200
+        accept_row = listed_after_accept.json()[0]
+        assert accept_row["accepted_by_creator"] is True
+        assert accept_row["contribution_score"] >= like_score + 40
+    finally:
+        main.app.dependency_overrides = {}
+
+
+def test_early_access_grant_flow_and_top_contributors():
+    client = _make_client()
+    try:
+        creator = {
+            "email": "creator-early-access@example.com",
+            "name": "Creator EA",
+            "password": "pass1234",
+            "role": "creator",
+            "subscription": "creator_basic",
+        }
+        tester_a = {
+            "email": "tester-early-access-a@example.com",
+            "name": "Tester A",
+            "password": "pass1234",
+            "role": "tester",
+            "subscription": "free",
+        }
+        tester_b = {
+            "email": "tester-early-access-b@example.com",
+            "name": "Tester B",
+            "password": "pass1234",
+            "role": "tester",
+            "subscription": "free",
+        }
+        _register(client, creator)
+        _register(client, tester_a)
+        _register(client, tester_b)
+        creator_login = _login(client, creator["email"], creator["password"])
+        tester_a_login = _login(client, tester_a["email"], tester_a["password"])
+        tester_b_login = _login(client, tester_b["email"], tester_b["password"])
+
+        created = client.post(
+            "/projects",
+            json={
+                "title": "Early access reward project",
+                "description": "A valid description for early access reward workflow tests.",
+                "target_audience": "Builders",
+                "questions": ["What matters most?"],
+                "budget": 60,
+                "main_category": "digital",
+                "subcategory": "saas",
+                "reward_type": "early_access",
+            },
+            headers=_auth_headers(creator_login["access_token"]),
+        )
+        assert created.status_code == 200
+        project_payload = created.json()
+        assert project_payload["reward_type"] == "early_access"
+        project_id = project_payload["id"]
+
+        response_a = client.post(
+            f"/projects/{project_id}/respond",
+            json={"interest_level": 5, "answers": ["Strong signal"]},
+            headers=_auth_headers(tester_a_login["access_token"]),
+        )
+        response_b = client.post(
+            f"/projects/{project_id}/respond",
+            json={"interest_level": 4, "answers": ["Good, but needs polish"]},
+            headers=_auth_headers(tester_b_login["access_token"]),
+        )
+        assert response_a.status_code == 200
+        assert response_b.status_code == 200
+
+        top_contributors = client.get(
+            f"/projects/{project_id}/top-contributors",
+            headers=_auth_headers(creator_login["access_token"]),
+        )
+        assert top_contributors.status_code == 200
+        contributors = top_contributors.json()
+        assert len(contributors) == 2
+        assert "contribution_score" in contributors[0]
+        assert "reliability_score" in contributors[0]
+        target_tester_id = contributors[0]["user_id"]
+
+        grant = client.post(
+            f"/projects/{project_id}/early-access/{target_tester_id}",
+            headers=_auth_headers(creator_login["access_token"]),
+        )
+        assert grant.status_code == 200
+        grant_payload = grant.json()
+        assert grant_payload["project_id"] == project_id
+        assert grant_payload["project_title"] == "Early access reward project"
+
+        duplicate_grant = client.post(
+            f"/projects/{project_id}/early-access/{target_tester_id}",
+            headers=_auth_headers(creator_login["access_token"]),
+        )
+        assert duplicate_grant.status_code == 200
+
+        granted_tester_login = tester_a_login if target_tester_id == tester_a_login["user_id"] else tester_b_login
+        my_early_access = client.get(
+            "/me/early-access",
+            headers=_auth_headers(granted_tester_login["access_token"]),
+        )
+        assert my_early_access.status_code == 200
+        grants = my_early_access.json()
+        assert len(grants) >= 1
+        assert any(item["project_id"] == project_id for item in grants)
+    finally:
+        main.app.dependency_overrides = {}
+
+
 def test_ai_summary_generation_cache_refresh_and_disabled_provider():
     client = _make_client()
     original_generate = main.generate_ai_summary
@@ -817,6 +1122,7 @@ def test_ai_summary_generation_cache_refresh_and_disabled_provider():
             assert "Clear pricing signal" in summary_input
             return {
                 "summary": f"Generated summary {calls['count']}",
+                "one_liner": "Moderate demand if onboarding friction gets lower.",
                 "key_signals": ["pricing signal"],
                 "pricing_insight": {
                     "willingness": "medium",
@@ -841,6 +1147,7 @@ def test_ai_summary_generation_cache_refresh_and_disabled_provider():
         first_payload = first.json()
         assert first_payload["cached"] is False
         assert first_payload["responses_count"] == 1
+        assert first_payload["one_liner"] == "Moderate demand if onboarding friction gets lower."
         assert first_payload["summary"]["summary"] == "Generated summary 1"
         assert calls["count"] == 1
 
@@ -910,6 +1217,7 @@ def test_gemini_summary_provider_request_and_parse(monkeypatch):
                                     "text": json.dumps(
                                         {
                                             "summary": "Gemini summary",
+                                            "one_liner": "Strong pull from founders with clear willingness to pay.",
                                             "key_signals": ["signal"],
                                             "pricing_insight": {
                                                 "willingness": "medium",
