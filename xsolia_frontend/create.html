@@ -757,7 +757,7 @@
 	        clientErrors.image_urls = 'Each image URL must be 2048 characters or fewer.';
 	      }
 		      if (reward.length > 500) clientErrors.reward_note = 'Reward note is too long.';
-          if (!['public', 'tester_only', 'invite_only', 'unlisted'].includes(visibility)) {
+          if (!['public', 'tester_only', 'unlisted'].includes(visibility)) {
             clientErrors.visibility = 'Please select a valid visibility mode.';
           }
           if (!['problem_only', 'concept_summary', 'full_description'].includes(detailLevel)) {

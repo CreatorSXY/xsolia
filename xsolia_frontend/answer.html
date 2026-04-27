@@ -212,9 +212,15 @@
             throw new Error(XsoliaApp.formatApiError(data, 'Failed to load project'));
           }
 
-        const proj = data;
+	        const proj = data;
+        if (!proj.allow_indexing) {
+          const meta = document.createElement('meta');
+          meta.name = 'robots';
+          meta.content = 'noindex, nofollow';
+          document.head.appendChild(meta);
+        }
 
-        titleEl.textContent = proj.title;
+	        titleEl.textContent = proj.title;
         descEl.textContent = proj.description || '';
         metaEl.textContent = `Target: ${proj.target_audience || 'Not specified'} · Budget: $${proj.budget || 0}`;
         imagesEl.innerHTML = '';

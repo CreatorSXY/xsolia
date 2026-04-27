@@ -1433,13 +1433,15 @@ def infer_validation_category_from_innovation(innovation: Innovation) -> Optiona
 
 
 def compute_creator_decision_stage(responses_count: int, avg_interest: Optional[float]) -> str:
+    if responses_count >= 20:
+        return "decision_needed"
     if responses_count < 5:
         return "draft_or_low_signal"
+    if responses_count < 15:
+        return "testing"
     if avg_interest is not None and avg_interest >= 3.5:
-        return "decision_needed" if responses_count >= 20 else "enough_signal"
-    if responses_count >= 20:
-        return "weak_signal"
-    return "testing"
+        return "enough_signal"
+    return "weak_signal"
 
 
 def update_tester_streak(tester: User) -> None:

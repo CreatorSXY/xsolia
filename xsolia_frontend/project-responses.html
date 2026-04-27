@@ -235,10 +235,16 @@
             throw new Error(XsoliaApp.formatApiError(projectData, "Failed to load project."));
           }
 
-        const proj = projectData;
-        currentProject = proj;
+	        const proj = projectData;
+	        currentProject = proj;
+        if (!proj.allow_indexing) {
+          const meta = document.createElement('meta');
+          meta.name = 'robots';
+          meta.content = 'noindex, nofollow';
+          document.head.appendChild(meta);
+        }
 
-        // 权限：确保当前 creator 是该 topic 的创建者
+	        // 权限：确保当前 creator 是该 topic 的创建者
         if (Number(proj.creator_id) !== userId) {
           alert("You are not the creator of this topic.");
           window.location.href = "creator-dashboard.html";
