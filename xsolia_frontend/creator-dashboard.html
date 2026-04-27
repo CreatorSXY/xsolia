@@ -195,6 +195,35 @@
       }[stage] || stage;
     }
 
+    function formatDecisionSuggestion(suggestion) {
+      const normalized = String(suggestion || "drop").toLowerCase();
+      if (normalized === "build") return "Build";
+      if (normalized === "pivot") return "Pivot";
+      return "Drop";
+    }
+
+    function styleDecisionSuggestionChip(node, suggestion) {
+      if (!node) return;
+      const normalized = String(suggestion || "drop").toLowerCase();
+      node.style.borderWidth = "1px";
+      node.style.borderStyle = "solid";
+      if (normalized === "build") {
+        node.style.background = "rgba(22, 163, 74, 0.16)";
+        node.style.color = "#166534";
+        node.style.borderColor = "rgba(22, 163, 74, 0.35)";
+        return;
+      }
+      if (normalized === "pivot") {
+        node.style.background = "rgba(245, 158, 11, 0.16)";
+        node.style.color = "#92400e";
+        node.style.borderColor = "rgba(245, 158, 11, 0.35)";
+        return;
+      }
+      node.style.background = "rgba(220, 38, 38, 0.14)";
+      node.style.color = "#991b1b";
+      node.style.borderColor = "rgba(220, 38, 38, 0.35)";
+    }
+
     // --- Auth & basic info ---
     const session = XsoliaApp.requireAuth({ role: "creator", redirect: "login.html?role=creator" });
     if (!session) {
@@ -300,11 +329,109 @@
     const avgInterestAllEl = document.getElementById("avgInterestAll");
     const projectsNeedingDecisionEl = document.getElementById("projectsNeedingDecision");
     const statusFilter = document.getElementById("statusFilter");
+    const aiOneLinerStoragePrefix = "xsolia_ai_one_liner_";
+    const statsCache = new Map();
+    const statsPending = new Map();
+    let statsObserver = null;
+
+    function applyStatsToCard(card, stats) {
+      if (!card || !stats) return;
+      const scoreEl = card.querySelector("[data-validation-score]");
+      const decisionEl = card.querySelector("[data-decision-suggestion]");
+      const score = Number(stats.validation_score || 0);
+      const suggestion = String(stats.decision_suggestion || "drop").toLowerCase();
+      if (scoreEl) {
+        scoreEl.textContent = `Score: ${score}`;
+      }
+      if (decisionEl) {
+        decisionEl.textContent = formatDecisionSuggestion(suggestion);
+        styleDecisionSuggestionChip(decisionEl, suggestion);
+      }
+      card.dataset.statsLoaded = "true";
+    }
+
+    function getCachedAiOneLiner(projectId) {
+      const normalizedProjectId = Number(projectId);
+      if (!Number.isFinite(normalizedProjectId)) return "";
+      try {
+        return String(localStorage.getItem(`${aiOneLinerStoragePrefix}${normalizedProjectId}`) || "").trim();
+      } catch (_err) {
+        return "";
+      }
+    }
+
+    async function fetchProjectStats(projectId) {
+      const normalizedProjectId = Number(projectId);
+      if (statsCache.has(normalizedProjectId)) {
+        return statsCache.get(normalizedProjectId);
+      }
+      if (statsPending.has(normalizedProjectId)) {
+        return statsPending.get(normalizedProjectId);
+      }
+      const promise = (async () => {
+        const { response, data } = await XsoliaApp.apiFetch(`/projects/${normalizedProjectId}/stats`, { auth: true });
+        if (!response.ok) {
+          throw new Error(XsoliaApp.formatApiError(data, "Failed to load project stats."));
+        }
+        statsCache.set(normalizedProjectId, data);
+        return data;
+      })();
+      statsPending.set(normalizedProjectId, promise);
+      try {
+        return await promise;
+      } finally {
+        statsPending.delete(normalizedProjectId);
+      }
+    }
+
+    function setupStatsObserver() {
+      if (!("IntersectionObserver" in window)) {
+        const cards = topicsContainer.querySelectorAll("[data-project-id]");
+        cards.forEach(async (card) => {
+          const projectId = Number(card.dataset.projectId);
+          if (!Number.isFinite(projectId)) return;
+          try {
+            const stats = await fetchProjectStats(projectId);
+            applyStatsToCard(card, stats);
+          } catch (_err) {
+            // Non-blocking metric.
+          }
+        });
+        return;
+      }
+
+      if (statsObserver) {
+        statsObserver.disconnect();
+      }
+
+      statsObserver = new IntersectionObserver((entries) => {
+        entries.forEach(async (entry) => {
+          if (!entry.isIntersecting) return;
+          const card = entry.target;
+          const projectId = Number(card.dataset.projectId);
+          statsObserver.unobserve(card);
+          if (!Number.isFinite(projectId)) return;
+          try {
+            const stats = await fetchProjectStats(projectId);
+            applyStatsToCard(card, stats);
+          } catch (_err) {
+            // Non-blocking metric.
+          }
+        });
+      }, { threshold: 0.18 });
+
+      topicsContainer.querySelectorAll("[data-project-id]").forEach((card) => {
+        statsObserver.observe(card);
+      });
+    }
 
     async function loadCreatorTopics() {
       topicsContainer.innerHTML = "";
       emptyHint.classList.add("hidden");
       errorEl.classList.add("hidden");
+      if (statsObserver) {
+        statsObserver.disconnect();
+      }
 
       try {
         const { response, data } = await XsoliaApp.apiFetch("/me/creator-dashboard", {
@@ -338,6 +465,7 @@
           const card = document.createElement("div");
           card.className = "x-card motion-reveal";
           card.style.animationDelay = `${Math.min(idx * 70, 420)}ms`;
+          card.dataset.projectId = String(topic.id);
 
           const row1 = document.createElement("div");
           row1.className = "flex items-center justify-between mb-1";
@@ -356,6 +484,15 @@
           const descEl = document.createElement("p");
           descEl.className = "text-sm";
           descEl.textContent = topic.next_step || "Review responses and decide the next move.";
+
+          const oneLiner = getCachedAiOneLiner(topic.id);
+          const oneLinerEl = document.createElement("p");
+          oneLinerEl.style.fontSize = "0.82rem";
+          oneLinerEl.style.fontStyle = "italic";
+          oneLinerEl.style.color = "#5b5349";
+          oneLinerEl.style.marginBottom = "0.35rem";
+          oneLinerEl.textContent = oneLiner;
+          oneLinerEl.style.display = oneLiner ? "block" : "none";
 
           const metaEl = document.createElement("p");
           metaEl.className = "text-xs mb-2";
@@ -422,9 +559,76 @@
           metricsEl.appendChild(m3);
           metricsEl.appendChild(m4);
 
+          const milestones = [5, 15, 30];
+          const milestoneLabels = {
+            5: "Enough for early signal",
+            15: "Enough for reliable data",
+            30: "Full validation complete",
+          };
+          const responsesCount = Number(topic.responses_count || 0);
+          const nextMilestone = milestones.find((value) => value > responsesCount) || null;
+          const milestoneWrap = document.createElement("div");
+          milestoneWrap.style.marginBottom = "0.65rem";
+
+          const milestoneText = document.createElement("p");
+          milestoneText.style.fontSize = "0.78rem";
+          milestoneText.style.color = "#6b7280";
+          milestoneText.style.marginBottom = "0.3rem";
+
+          const milestoneHint = document.createElement("p");
+          milestoneHint.style.fontSize = "0.74rem";
+          milestoneHint.style.color = "#9ca3af";
+          milestoneHint.style.margin = "0.18rem 0 0";
+
+          const progressTrack = document.createElement("div");
+          progressTrack.style.width = "100%";
+          progressTrack.style.height = "8px";
+          progressTrack.style.borderRadius = "999px";
+          progressTrack.style.background = "rgba(42,39,34,0.12)";
+          progressTrack.style.overflow = "hidden";
+
+          const progressFill = document.createElement("div");
+          progressFill.style.height = "100%";
+          progressFill.style.borderRadius = "inherit";
+          progressFill.style.background = "linear-gradient(90deg, #d76235 0%, #ed8b5f 100%)";
+          progressFill.style.transition = "width 220ms ease";
+
+          if (nextMilestone) {
+            const progress = Math.max(0, Math.min(100, (responsesCount / nextMilestone) * 100));
+            milestoneText.textContent = `${responsesCount} / ${nextMilestone} responses to next milestone`;
+            milestoneHint.textContent = `${nextMilestone} → ${milestoneLabels[nextMilestone]}`;
+            progressFill.style.width = `${progress}%`;
+          } else {
+            milestoneText.textContent = "Milestone reached — ready to decide";
+            milestoneHint.textContent = `30 → ${milestoneLabels[30]}`;
+            progressFill.style.width = "100%";
+          }
+
+          progressTrack.appendChild(progressFill);
+          milestoneWrap.appendChild(milestoneText);
+          milestoneWrap.appendChild(progressTrack);
+          milestoneWrap.appendChild(milestoneHint);
+
           const stageBadge = document.createElement("span");
           stageBadge.className = "x-badge";
           stageBadge.textContent = formatStage(topic.decision_stage);
+
+          const scoreBadge = document.createElement("span");
+          scoreBadge.className = "x-badge font-data";
+          scoreBadge.dataset.validationScore = "true";
+          scoreBadge.textContent = "Score: …";
+
+          const suggestionBadge = document.createElement("span");
+          suggestionBadge.className = "x-badge";
+          suggestionBadge.dataset.decisionSuggestion = "true";
+          suggestionBadge.textContent = "Drop";
+          styleDecisionSuggestionChip(suggestionBadge, "drop");
+
+          const scoreRow = document.createElement("div");
+          scoreRow.className = "flex items-center gap-2 mb-2";
+          scoreRow.appendChild(stageBadge);
+          scoreRow.appendChild(scoreBadge);
+          scoreRow.appendChild(suggestionBadge);
 
           const signalEl = document.createElement("p");
           signalEl.style.fontSize = "0.78rem";
@@ -499,16 +703,19 @@
           actionsRow.appendChild(btnRow);
 
           card.appendChild(row1);
-          card.appendChild(stageBadge);
+          card.appendChild(oneLinerEl);
+          card.appendChild(scoreRow);
           card.appendChild(descEl);
           card.appendChild(metaEl);
           card.appendChild(signalEl);
           card.appendChild(metricsEl);
+          card.appendChild(milestoneWrap);
           card.appendChild(actionsRow);
 
           topicsContainer.appendChild(card);
         });
         XsoliaApp.initMotion();
+        setupStatsObserver();
 
       } catch (err) {
         console.error(err);

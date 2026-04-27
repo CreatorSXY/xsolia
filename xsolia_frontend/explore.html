@@ -87,6 +87,37 @@
       margin-top: 0.15rem;
     }
 
+    .trending-strip {
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: minmax(220px, 280px);
+      gap: 0.75rem;
+      overflow-x: auto;
+      padding-bottom: 0.2rem;
+    }
+
+    .trending-card {
+      border: 1px solid #d8cec2;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.66);
+      padding: 0.75rem;
+      min-height: 138px;
+    }
+
+    .trending-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #231e1a;
+      line-height: 1.25;
+      margin: 0;
+    }
+
+    .trending-meta {
+      font-size: 0.76rem;
+      color: #7a6e62;
+      margin-top: 0.45rem;
+    }
+
     @media (max-width: 760px) {
       .topic-item {
         grid-template-columns: 1fr;
@@ -186,6 +217,14 @@
       </p>
     </section>
 
+    <section id="trendingSection" class="section motion-reveal" style="margin-top:0.95rem;">
+      <div class="flex items-center justify-between gap-2" style="margin-bottom:0.5rem;">
+        <h2 style="font-size:1rem; font-weight:800; margin:0;">Trending</h2>
+        <span style="font-size:0.75rem; color:#74685d;">Last 7 days + overall signal</span>
+      </div>
+      <div id="trendingContainer" class="trending-strip"></div>
+    </section>
+
     <section class="section motion-reveal" style="margin-top:1.05rem;">
       <div class="flex flex-wrap items-end justify-between gap-2" style="margin-bottom:0.45rem;">
         <div style="font-size:0.78rem; color:#74685d;">Filter by domain</div>
@@ -276,6 +315,8 @@
     const emptyHint = document.getElementById("emptyHint");
     const errorEl = document.getElementById("error");
     const sortSelectEl = document.getElementById("projectSort");
+    const trendingSection = document.getElementById("trendingSection");
+    const trendingContainer = document.getElementById("trendingContainer");
 
     if (!["new", "active"].includes(filters.sort)) {
       filters.sort = "new";
@@ -296,6 +337,13 @@
     function getSubcategoryLabel(subcategory) {
       if (!subcategory) return "";
       return SUBCATEGORY_LABELS[subcategory] || subcategory.replaceAll("_", " ");
+    }
+
+    function renderInterestStars(avgInterest) {
+      const value = Number(avgInterest || 0);
+      if (!Number.isFinite(value) || value <= 0) return "No ratings yet";
+      const rounded = Math.max(1, Math.min(5, Math.round(value)));
+      return `${"★".repeat(rounded)}${"☆".repeat(Math.max(0, 5 - rounded))} ${value.toFixed(1)}/5`;
     }
 
     function matchesCategory(project, mainCategory) {
@@ -397,6 +445,60 @@
       return wrapper;
     }
 
+    function createTrendingCard(project) {
+      const card = document.createElement("article");
+      card.className = "trending-card motion-reveal";
+
+      const title = document.createElement("h3");
+      title.className = "trending-title";
+      title.textContent = project.title || "Untitled topic";
+
+      const categoryChip = document.createElement("span");
+      categoryChip.className = "topic-chip";
+      categoryChip.textContent = project.main_category || "testing";
+
+      const responseMeta = document.createElement("p");
+      responseMeta.className = "trending-meta";
+      const responsesCount = Number(project.responses_count || 0);
+      responseMeta.textContent = `${responsesCount} response${responsesCount === 1 ? "" : "s"} · ${renderInterestStars(project.avg_interest)}`;
+
+      const action = document.createElement("a");
+      action.href = `answer.html?project_id=${project.id}`;
+      action.className = "x-btn-secondary";
+      action.style.fontSize = "0.78rem";
+      action.style.marginTop = "0.55rem";
+      action.textContent = "Open topic";
+
+      card.appendChild(title);
+      card.appendChild(categoryChip);
+      card.appendChild(responseMeta);
+      card.appendChild(action);
+      return card;
+    }
+
+    async function fetchTrending() {
+      if (!trendingSection || !trendingContainer) return;
+      try {
+        const { response, data } = await XsoliaApp.apiFetch("/projects/trending?limit=6", {
+          auth: Boolean(session && session.accessToken),
+          disableAuthRedirect: true,
+        });
+        if (!response.ok) {
+          throw new Error(XsoliaApp.formatApiError(data, "Failed to load trending topics."));
+        }
+        const rows = Array.isArray(data) ? data : [];
+        if (!rows.length) {
+          trendingSection.classList.add("hidden");
+          return;
+        }
+        trendingSection.classList.remove("hidden");
+        trendingContainer.innerHTML = "";
+        rows.forEach((project) => trendingContainer.appendChild(createTrendingCard(project)));
+      } catch (_err) {
+        trendingSection.classList.add("hidden");
+      }
+    }
+
     function renderProjects() {
       container.textContent = "";
       emptyHint.classList.add("hidden");
@@ -474,7 +576,7 @@
     setupFilters();
     (async () => {
       await fetchRespondedProjects();
-      await fetchProjects();
+      await Promise.all([fetchTrending(), fetchProjects()]);
     })();
   </script>
 </body>

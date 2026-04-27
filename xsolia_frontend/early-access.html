@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Early Access · Krotka.ai by xSolia</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/theme.css?v=20260424-gsap" />
+</head>
+<body class="min-h-screen flex flex-col">
+  <div id="navbar"></div>
+
+  <main class="flex-1 container workspace-shell" style="padding-top:1.5rem; padding-bottom:2rem;">
+    <section class="section workspace-hero motion-reveal">
+      <div>
+        <h1 style="font-size:1.45rem; font-weight:800; margin:0;">Your early access grants</h1>
+        <p style="font-size:0.9rem; color:#6b7280; margin-top:0.35rem;">
+          Creators can grant early access to top contributors after reviewing response quality.
+        </p>
+      </div>
+      <a href="tester-dashboard.html" class="x-btn-secondary" style="font-size:0.82rem;">Back to dashboard</a>
+    </section>
+
+    <section class="section surface-list motion-reveal">
+      <div id="grantsList" class="flex flex-col gap-3"></div>
+      <p id="emptyHint" class="hidden" style="font-size:0.9rem; color:#9ca3af;">
+        No early access grants yet. Answer more projects to compete.
+      </p>
+      <p id="error" class="hidden" style="font-size:0.9rem; color:#f97373;"></p>
+    </section>
+  </main>
+
+  <footer style="text-align:center; padding:1.5rem 0; font-size:0.75rem; color:var(--ink-faint);">
+    © 2026 Krotka.ai by xSolia
+  </footer>
+
+  <script src="js/app.js?v=20260424-gsap"></script>
+  <script src="js/logo.js"></script>
+  <script src="js/nav.js"></script>
+  <script>
+    const session = XsoliaApp.requireAuth({ role: "tester", redirect: "login.html?role=tester" });
+    if (!session) {
+      throw new Error("Authentication required");
+    }
+
+    const grantsListEl = document.getElementById("grantsList");
+    const emptyHintEl = document.getElementById("emptyHint");
+    const errorEl = document.getElementById("error");
+
+    function createGrantCard(grant) {
+      const card = document.createElement("article");
+      card.className = "x-card motion-reveal";
+
+      const row = document.createElement("div");
+      row.className = "flex flex-wrap items-center justify-between gap-2";
+      const title = document.createElement("h2");
+      title.style.fontSize = "1rem";
+      title.style.fontWeight = "700";
+      title.textContent = grant.project_title || `Project #${grant.project_id}`;
+      const badge = document.createElement("span");
+      badge.className = "x-badge";
+      badge.textContent = "Early Access Granted";
+      row.appendChild(title);
+      row.appendChild(badge);
+
+      const date = document.createElement("p");
+      date.style.fontSize = "0.82rem";
+      date.style.color = "#6b7280";
+      date.style.marginTop = "0.45rem";
+      const grantedDate = grant.granted_at ? new Date(grant.granted_at).toLocaleString() : "Unknown date";
+      date.textContent = `Granted at ${grantedDate}`;
+
+      card.appendChild(row);
+      card.appendChild(date);
+      return card;
+    }
+
+    async function loadEarlyAccess() {
+      grantsListEl.innerHTML = "";
+      emptyHintEl.classList.add("hidden");
+      errorEl.classList.add("hidden");
+
+      try {
+        const { response, data } = await XsoliaApp.apiFetch("/me/early-access", { auth: true });
+        if (!response.ok) {
+          throw new Error(XsoliaApp.formatApiError(data, "Failed to load early access grants."));
+        }
+        const grants = Array.isArray(data) ? data : [];
+        if (!grants.length) {
+          emptyHintEl.classList.remove("hidden");
+          return;
+        }
+        grants.forEach((grant) => grantsListEl.appendChild(createGrantCard(grant)));
+        XsoliaApp.initMotion();
+      } catch (err) {
+        errorEl.textContent = err.message || "Failed to load early access grants.";
+        errorEl.classList.remove("hidden");
+      }
+    }
+
+    loadEarlyAccess();
+  </script>
+</body>
+</html>

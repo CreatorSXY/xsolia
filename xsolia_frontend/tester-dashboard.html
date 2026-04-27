@@ -111,6 +111,7 @@
         <span id="streakValue" class="x-badge">0 day streak</span>
         <span id="pointsValue" class="x-badge font-data">0 pts</span>
         <span id="streakBadge" class="x-badge hidden">7-day badge</span>
+        <a href="early-access.html" class="x-btn-secondary" style="font-size:0.78rem;">Early access</a>
         <a href="leaderboard.html" class="x-btn-secondary" style="font-size:0.78rem;">Leaderboard</a>
         <button id="usernameBtn" type="button" class="x-btn-secondary" style="font-size:0.78rem;">Set public username</button>
         <span id="usernameHint" style="font-size:0.76rem;color:#6b7280;max-width:220px;text-align:right;"></span>
@@ -374,7 +375,11 @@
       row.style.textAlign = 'left';
       row.style.width = '100%';
       row.style.fontSize = '0.86rem';
-      row.textContent = `${payload.project_title || 'A project'} launched · You gave it ${payload.your_interest || '–'}/5 · Good call.`;
+      if (item.type === 'early_access_granted') {
+        row.textContent = `${payload.project_title || 'A project'} granted you early access.`;
+      } else {
+        row.textContent = `${payload.project_title || 'A project'} launched · You gave it ${payload.your_interest || '–'}/5 · Good call.`;
+      }
       row.addEventListener('click', async () => {
         await XsoliaApp.apiFetch(`/me/notifications/${item.id}/read`, { method: 'POST', auth: true });
         row.remove();

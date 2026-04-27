@@ -163,6 +163,16 @@
 
     <!-- Responses list -->
     <section class="section responses-stage">
+      <div id="topContributorsPanel" class="x-card hidden" style="margin-bottom:0.8rem;">
+        <button id="toggleContributorsBtn" type="button" class="x-btn-secondary" style="font-size:0.82rem;">
+          Top Contributors
+        </button>
+        <div id="topContributorsContent" class="hidden" style="margin-top:0.65rem;">
+          <p id="topContributorsStatus" style="font-size:0.82rem; color:#6b7280; margin-bottom:0.5rem;"></p>
+          <div id="topContributorsList" class="flex flex-col gap-2"></div>
+        </div>
+      </div>
+
       <div class="responses-heading">
         <div>
           <p class="eyebrow">Tester evidence</p>
@@ -220,12 +230,153 @@
     const copyShareTextBtn = document.getElementById("copyShareTextBtn");
     const shareStatusEl = document.getElementById("shareStatus");
     const shareCardPreviewEl = document.getElementById("shareCardPreview");
+    const topContributorsPanel = document.getElementById("topContributorsPanel");
+    const toggleContributorsBtn = document.getElementById("toggleContributorsBtn");
+    const topContributorsContent = document.getElementById("topContributorsContent");
+    const topContributorsStatus = document.getElementById("topContributorsStatus");
+    const topContributorsList = document.getElementById("topContributorsList");
 
     let currentProject = null;
     let currentResponses = [];
     let latestAiSummary = null;
     let latestStats = null;
     let latestShareText = "";
+    let topContributorsLoaded = false;
+    const aiOneLinerStoragePrefix = "xsolia_ai_one_liner_";
+
+    function cacheAiOneLiner(projectIdValue, oneLiner) {
+      const normalizedProjectId = Number(projectIdValue);
+      const text = String(oneLiner || "").trim();
+      if (!Number.isFinite(normalizedProjectId) || !text) return;
+      try {
+        localStorage.setItem(`${aiOneLinerStoragePrefix}${normalizedProjectId}`, text);
+      } catch (_err) {
+        // Non-blocking local cache.
+      }
+    }
+
+    function contributionProgressWidth(score) {
+      const normalized = Number(score || 0);
+      if (!Number.isFinite(normalized)) return "0%";
+      return `${Math.max(0, Math.min(100, normalized))}%`;
+    }
+
+    function createTopContributorRow(row) {
+      const wrapper = document.createElement("div");
+      wrapper.className = "x-card";
+      wrapper.style.display = "grid";
+      wrapper.style.gridTemplateColumns = "1fr auto";
+      wrapper.style.gap = "0.65rem";
+      wrapper.style.alignItems = "center";
+
+      const left = document.createElement("div");
+      const name = document.createElement("p");
+      name.style.fontSize = "0.9rem";
+      name.style.fontWeight = "700";
+      name.style.marginBottom = "0.25rem";
+      const username = row.username ? ` (@${row.username})` : "";
+      name.textContent = `${row.name || `User #${row.user_id}`}${username}`;
+
+      const metrics = document.createElement("p");
+      metrics.style.fontSize = "0.76rem";
+      metrics.style.color = "#6b7280";
+      metrics.textContent = `Reliability ${Number(row.reliability_score || 0)} · Accepted ${Number(row.accepted_count || 0)}`;
+
+      const scoreTrack = document.createElement("div");
+      scoreTrack.style.height = "8px";
+      scoreTrack.style.borderRadius = "999px";
+      scoreTrack.style.background = "rgba(42,39,34,0.12)";
+      scoreTrack.style.marginTop = "0.38rem";
+      scoreTrack.style.overflow = "hidden";
+
+      const scoreFill = document.createElement("div");
+      scoreFill.style.height = "100%";
+      scoreFill.style.width = contributionProgressWidth(row.contribution_score);
+      scoreFill.style.borderRadius = "inherit";
+      scoreFill.style.background = "linear-gradient(90deg, #d76235 0%, #ed8b5f 100%)";
+      scoreTrack.appendChild(scoreFill);
+
+      const scoreLabel = document.createElement("p");
+      scoreLabel.style.fontSize = "0.74rem";
+      scoreLabel.style.color = "#6b7280";
+      scoreLabel.style.marginTop = "0.25rem";
+      scoreLabel.textContent = `Contribution score: ${Number(row.contribution_score || 0)}`;
+
+      left.appendChild(name);
+      left.appendChild(metrics);
+      left.appendChild(scoreTrack);
+      left.appendChild(scoreLabel);
+
+      const right = document.createElement("div");
+      right.style.display = "flex";
+      right.style.flexDirection = "column";
+      right.style.alignItems = "flex-end";
+      right.style.gap = "0.3rem";
+
+      const grantBtn = document.createElement("button");
+      grantBtn.type = "button";
+      grantBtn.className = "x-btn-primary";
+      grantBtn.style.fontSize = "0.76rem";
+      grantBtn.textContent = "Grant Early Access";
+      grantBtn.addEventListener("click", async () => {
+        grantBtn.disabled = true;
+        const originalText = grantBtn.textContent;
+        grantBtn.textContent = "Granting...";
+        try {
+          const { response, data } = await XsoliaApp.apiFetch(`/projects/${projectId}/early-access/${row.user_id}`, {
+            method: "POST",
+            auth: true,
+          });
+          if (!response.ok) {
+            throw new Error(XsoliaApp.formatApiError(data, "Failed to grant early access."));
+          }
+          grantBtn.textContent = "Access granted";
+          grantBtn.disabled = true;
+          grantBtn.className = "x-btn-secondary";
+        } catch (err) {
+          grantBtn.disabled = false;
+          grantBtn.textContent = originalText;
+          topContributorsStatus.textContent = err.message || "Failed to grant early access.";
+        }
+      });
+      right.appendChild(grantBtn);
+
+      wrapper.appendChild(left);
+      wrapper.appendChild(right);
+      return wrapper;
+    }
+
+    async function loadTopContributors() {
+      topContributorsStatus.textContent = "Loading contributors...";
+      topContributorsList.innerHTML = "";
+      try {
+        const { response, data } = await XsoliaApp.apiFetch(`/projects/${projectId}/top-contributors`, {
+          auth: true,
+        });
+        if (!response.ok) {
+          throw new Error(XsoliaApp.formatApiError(data, "Failed to load top contributors."));
+        }
+        const contributors = Array.isArray(data) ? data : [];
+        if (!contributors.length) {
+          topContributorsStatus.textContent = "No contributor data yet.";
+          return;
+        }
+        topContributorsStatus.textContent = "";
+        contributors.forEach((row) => topContributorsList.appendChild(createTopContributorRow(row)));
+      } catch (err) {
+        topContributorsStatus.textContent = err.message || "Failed to load top contributors.";
+      }
+    }
+
+    function configureTopContributorsPanel(project) {
+      if (!topContributorsPanel || !toggleContributorsBtn || !topContributorsContent) return;
+      if (!project || project.reward_type !== "early_access") {
+        topContributorsPanel.classList.add("hidden");
+        return;
+      }
+      topContributorsPanel.classList.remove("hidden");
+      topContributorsStatus.textContent = "Open to view ranked contributors.";
+    }
 
     async function loadProjectAndResponses() {
       try {
@@ -257,6 +408,7 @@
         const budget = proj.budget || 0;
         const sourceText = proj.source_innovation_id ? ` · Source: Innovation Pool idea #${proj.source_innovation_id}` : "";
         projectMetaEl.textContent = `Target: ${target} · Budget: $${budget}${sourceText}`;
+        configureTopContributorsPanel(proj);
 
         // 2) 拉取该 project 的所有回答
         const { response: respRes, data: respData } = await XsoliaApp.apiFetch(`/projects/${projectId}/responses?limit=100&offset=0`, {
@@ -325,9 +477,11 @@
       latestAiSummary = summary;
       const pricing = summary.pricing_insight || {};
       const interest = summary.interest_insight || {};
+      const oneLiner = String(payload.one_liner || summary.one_liner || "").trim();
       const generatedAt = payload.generated_at ? new Date(payload.generated_at) : null;
       const generatedLabel = generatedAt ? generatedAt.toLocaleString() : "just now";
       const cacheLabel = payload.cached ? "Cached" : "Fresh";
+      cacheAiOneLiner(projectId, oneLiner);
 
       aiSummaryContentEl.innerHTML = `
         <div class="summary-result">
@@ -335,6 +489,7 @@
             <span>${cacheLabel} brief</span>
             <span>${escapeHtml(payload.model || "AI model")} · ${escapeHtml(generatedLabel)}</span>
           </div>
+          ${oneLiner ? `<p class="summary-lede" style="font-size:1rem; font-style:italic; margin-bottom:0.65rem;">${escapeHtml(oneLiner)}</p>` : ""}
           <p class="summary-lede">${escapeHtml(summary.summary || "No summary returned.")}</p>
           <div class="summary-metrics">
             <div>
@@ -386,6 +541,15 @@
     shareResultsBtn.addEventListener("click", buildShareCard);
     downloadCardBtn.addEventListener("click", downloadShareCard);
     copyShareTextBtn.addEventListener("click", copyShareText);
+    if (toggleContributorsBtn) {
+      toggleContributorsBtn.addEventListener("click", async () => {
+        topContributorsContent.classList.toggle("hidden");
+        if (!topContributorsContent.classList.contains("hidden") && !topContributorsLoaded) {
+          topContributorsLoaded = true;
+          await loadTopContributors();
+        }
+      });
+    }
 
     async function fetchProjectStatsForShare() {
       const { response, data } = await XsoliaApp.apiFetch(`/projects/${projectId}/stats`, { auth: true });

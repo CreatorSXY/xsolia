@@ -227,6 +227,18 @@
             </div>
 
           <div>
+            <label style="font-size:0.85rem; color:#6b7280;">Reward type</label>
+            <select id="rewardType" class="x-input" style="max-width:280px; margin-top:0.25rem;">
+              <option value="points">Points reward</option>
+              <option value="early_access">Early access</option>
+            </select>
+            <p id="rewardTypeHint" class="hidden" style="font-size:0.75rem; color:#9ca3af; margin-top:0.25rem;">
+              Top contributors will be eligible for early access to your product.
+            </p>
+            <span id="err-rewardType" style="display:none; font-size:0.75rem; color:#f97373;"></span>
+          </div>
+
+          <div>
             <label style="font-size:0.85rem; color:#6b7280;">Validation image URLs (optional, up to 3)</label>
             <div id="imageUrlWrap" style="display:grid; gap:0.45rem; margin-top:0.25rem;">
               <input id="imageUrl0" type="url" class="x-input image-url-input" placeholder="https://..." />
@@ -638,6 +650,18 @@
       }
       prefillFromInnovation();
 
+      const rewardTypeNode = document.getElementById('rewardType');
+      const rewardTypeHintNode = document.getElementById('rewardTypeHint');
+      function syncRewardTypeHint() {
+        if (!rewardTypeNode || !rewardTypeHintNode) return;
+        const isEarlyAccess = rewardTypeNode.value === 'early_access';
+        rewardTypeHintNode.classList.toggle('hidden', !isEarlyAccess);
+      }
+      if (rewardTypeNode) {
+        rewardTypeNode.addEventListener('change', syncRewardTypeHint);
+      }
+      syncRewardTypeHint();
+
       const PROJECT_FIELD_MAP = {
         title: 'title',
         description: 'description',
@@ -645,6 +669,7 @@
         category: 'main_category',
         subcategory: 'subcategory',
         reward: 'reward_note',
+        rewardType: 'reward_type',
         budget: 'budget',
         visibility: 'visibility',
         detailLevel: 'detail_level',
@@ -655,7 +680,7 @@
           el.textContent = '';
           el.style.display = 'none';
         });
-        ['title', 'description', 'target', 'category', 'subcategory', 'reward', 'budget', 'visibility', 'detailLevel'].forEach((id) => {
+        ['title', 'description', 'target', 'category', 'subcategory', 'reward', 'rewardType', 'budget', 'visibility', 'detailLevel'].forEach((id) => {
           const input = document.getElementById(id);
           if (input) input.style.outline = '';
         });
@@ -727,8 +752,9 @@
           const visibility = (document.getElementById('visibility')?.value || 'public').trim();
           const detailLevel = (document.getElementById('detailLevel')?.value || 'concept_summary').trim();
           const allowIndexing = Boolean(document.getElementById('allowIndexing')?.checked);
-		      const reward = document.getElementById('reward').value.trim();
-		      const budgetStr = document.getElementById('budget').value.trim();
+			      const reward = document.getElementById('reward').value.trim();
+          const rewardType = (document.getElementById('rewardType')?.value || 'points').trim();
+			      const budgetStr = document.getElementById('budget').value.trim();
 	      const imageUrls = collectImageUrls();
 	      const qInputs = document.querySelectorAll('.question-input');
 	      const questions = [];
@@ -756,7 +782,10 @@
 	      else if (imageUrls.some((url) => url.length > 2048)) {
 	        clientErrors.image_urls = 'Each image URL must be 2048 characters or fewer.';
 	      }
-		      if (reward.length > 500) clientErrors.reward_note = 'Reward note is too long.';
+			      if (reward.length > 500) clientErrors.reward_note = 'Reward note is too long.';
+          if (!['points', 'early_access'].includes(rewardType)) {
+            clientErrors.reward_type = 'Please select a valid reward type.';
+          }
           if (!['public', 'tester_only', 'unlisted'].includes(visibility)) {
             clientErrors.visibility = 'Please select a valid visibility mode.';
           }
@@ -781,10 +810,11 @@
 		        title,
 		        description,
 		        target_audience: target,
-		        questions,
-		        image_urls: imageUrls,
-		        reward_note: reward || null,
-		        budget: Number(budgetStr) || 0,
+			        questions,
+			        image_urls: imageUrls,
+			        reward_note: reward || null,
+              reward_type: rewardType,
+			        budget: Number(budgetStr) || 0,
 		        main_category: mainCategory || 'testing',
 		        subcategory: subcategory || null,
             visibility,

@@ -48,6 +48,7 @@ PROJECT_STATUS_UPDATES = {"active", "closed", "archived"}
 INNOVATION_STATUS_UPDATES = {"active", "archived"}
 PROJECT_VISIBILITIES = {"public", "tester_only", "invite_only", "unlisted"}
 PROJECT_DETAIL_LEVELS = {"problem_only", "concept_summary", "full_description"}
+PROJECT_REWARD_TYPES = {"points", "early_access"}
 
 PBKDF2_ITERATIONS = int(
     os.getenv("XSOLIA_PBKDF2_ITERATIONS")
@@ -330,6 +331,7 @@ class Project(SQLModel, table=True):
     questions: str
     image_urls: str = "[]"
     reward_note: Optional[str] = None
+    reward_type: str = "points"
     budget: int
     main_category: str = "testing"
     subcategory: Optional[str] = None
@@ -365,6 +367,7 @@ class ProjectCreate(SQLModel):
     questions: list[str] = Field(min_length=1, max_length=8)
     image_urls: list[str] = Field(default_factory=list, max_length=3)
     reward_note: Optional[str] = None
+    reward_type: str = "points"
     budget: int = Field(ge=0, le=1_000_000_000)
     main_category: str = "testing"
     subcategory: Optional[str] = None
@@ -438,6 +441,14 @@ class ProjectCreate(SQLModel):
             raise ValueError("Reward note is too long")
         return cleaned or None
 
+    @field_validator("reward_type")
+    @classmethod
+    def validate_reward_type(cls, value: str) -> str:
+        cleaned = value.strip().lower()
+        if cleaned not in PROJECT_REWARD_TYPES:
+            raise ValueError("Invalid reward type")
+        return cleaned
+
     @field_validator("main_category")
     @classmethod
     def validate_main_category(cls, value: str) -> str:
@@ -495,6 +506,7 @@ class ProjectOut(SQLModel):
     questions: list[str]
     image_urls: list[str]
     reward_note: Optional[str]
+    reward_type: str = "points"
     budget: int
     main_category: str
     subcategory: Optional[str]
@@ -503,6 +515,8 @@ class ProjectOut(SQLModel):
     detail_level: str = "concept_summary"
     allow_indexing: bool = False
     source_innovation_id: Optional[int] = None
+    responses_count: int = 0
+    avg_interest: Optional[float] = None
 
 
 class ProjectAISummaryOut(SQLModel):
@@ -512,6 +526,7 @@ class ProjectAISummaryOut(SQLModel):
     input_hash: str
     cached: bool
     generated_at: datetime
+    one_liner: Optional[str] = None
     summary: dict[str, Any]
 
 
@@ -528,6 +543,7 @@ class Response(SQLModel, table=True):
     accepted_by_creator: bool = False
     accepted_at: Optional[datetime] = None
     likes_count: int = 0
+    contribution_score: int = Field(default=0)
     created_at: datetime = Field(default_factory=utc_now)
 
 
@@ -607,6 +623,7 @@ class ResponseOut(SQLModel):
     price_max: Optional[int] = None
     accepted_by_creator: bool
     likes_count: int
+    contribution_score: int = 0
     created_at: datetime
     responder_name: Optional[str] = None
     responder_reputation: Optional[TesterReputationOut] = None
@@ -686,6 +703,31 @@ class NotificationOut(SQLModel):
     created_at: datetime
 
 
+class EarlyAccessGrant(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("project_id", "tester_id", name="uq_early_access_grant"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    project_id: int = Field(foreign_key="project.id", index=True)
+    tester_id: int = Field(foreign_key="user.id", index=True)
+    granted_by: int = Field(foreign_key="user.id")
+    granted_at: datetime = Field(default_factory=utc_now)
+
+
+class EarlyAccessGrantOut(SQLModel):
+    project_id: int
+    project_title: str
+    granted_at: datetime
+
+
+class TopContributorOut(SQLModel):
+    user_id: int
+    name: str
+    username: Optional[str] = None
+    reliability_score: int = 0
+    contribution_score: int = 0
+    accepted_count: int = 0
+
+
 class ProjectStats(SQLModel):
     project_id: int
     responses_count: int
@@ -696,6 +738,8 @@ class ProjectStats(SQLModel):
     avg_price_max: Optional[float]
     price_percentiles: Optional[dict[str, float]]
     acceptance_rate: float
+    validation_score: int = 0
+    decision_suggestion: str = "drop"
 
 
 class Innovation(SQLModel, table=True):
@@ -851,6 +895,7 @@ def create_db_and_tables() -> None:
     SQLModel.metadata.create_all(engine)
     ensure_user_profile_columns()
     ensure_project_columns()
+    ensure_response_columns()
 
 
 def ensure_user_profile_columns() -> None:
@@ -913,11 +958,16 @@ def ensure_project_columns() -> None:
                 connection.execute(
                     text('ALTER TABLE "project" ADD COLUMN source_innovation_id INTEGER')
                 )
+            if "reward_type" not in existing_columns:
+                connection.execute(
+                    text('ALTER TABLE "project" ADD COLUMN reward_type VARCHAR NOT NULL DEFAULT \'points\'')
+                )
             connection.execute(text('UPDATE "project" SET image_urls = \'[]\' WHERE image_urls IS NULL OR trim(image_urls) = \'\''))
             connection.execute(text('UPDATE "project" SET visibility = \'public\' WHERE visibility IS NULL OR trim(visibility) = \'\''))
             connection.execute(text('UPDATE "project" SET visibility = \'unlisted\' WHERE visibility = \'private_link\''))
             connection.execute(text('UPDATE "project" SET detail_level = \'concept_summary\' WHERE detail_level IS NULL OR trim(detail_level) = \'\''))
             connection.execute(text("UPDATE \"project\" SET allow_indexing = 0 WHERE allow_indexing IS NULL"))
+            connection.execute(text("UPDATE \"project\" SET reward_type = 'points' WHERE reward_type IS NULL OR trim(reward_type) = ''"))
             connection.execute(text('CREATE INDEX IF NOT EXISTS ix_project_source_innovation_id ON "project" (source_innovation_id)'))
             return
 
@@ -927,12 +977,40 @@ def ensure_project_columns() -> None:
             connection.execute(text('ALTER TABLE "project" ADD COLUMN IF NOT EXISTS detail_level VARCHAR'))
             connection.execute(text('ALTER TABLE "project" ADD COLUMN IF NOT EXISTS allow_indexing BOOLEAN NOT NULL DEFAULT FALSE'))
             connection.execute(text('ALTER TABLE "project" ADD COLUMN IF NOT EXISTS source_innovation_id INTEGER'))
+            connection.execute(text('ALTER TABLE "project" ADD COLUMN IF NOT EXISTS reward_type VARCHAR NOT NULL DEFAULT \'points\''))
             connection.execute(text("UPDATE \"project\" SET image_urls = '[]' WHERE image_urls IS NULL OR btrim(image_urls) = ''"))
             connection.execute(text("UPDATE \"project\" SET visibility = 'public' WHERE visibility IS NULL OR btrim(visibility) = ''"))
             connection.execute(text("UPDATE \"project\" SET visibility = 'unlisted' WHERE visibility = 'private_link'"))
             connection.execute(text("UPDATE \"project\" SET detail_level = 'concept_summary' WHERE detail_level IS NULL OR btrim(detail_level) = ''"))
             connection.execute(text("UPDATE \"project\" SET allow_indexing = FALSE WHERE allow_indexing IS NULL"))
+            connection.execute(text("UPDATE \"project\" SET reward_type = 'points' WHERE reward_type IS NULL OR btrim(reward_type) = ''"))
             connection.execute(text('CREATE INDEX IF NOT EXISTS ix_project_source_innovation_id ON "project" (source_innovation_id)'))
+
+
+def ensure_response_columns() -> None:
+    dialect = engine.dialect.name
+    with engine.begin() as connection:
+        if dialect == "sqlite":
+            existing_columns = {
+                row[1]
+                for row in connection.execute(text('PRAGMA table_info("response")')).fetchall()
+            }
+            if "contribution_score" not in existing_columns:
+                connection.execute(
+                    text('ALTER TABLE "response" ADD COLUMN contribution_score INTEGER NOT NULL DEFAULT 0')
+                )
+            connection.execute(
+                text('UPDATE "response" SET contribution_score = 0 WHERE contribution_score IS NULL')
+            )
+            return
+
+        if dialect == "postgresql":
+            connection.execute(
+                text('ALTER TABLE "response" ADD COLUMN IF NOT EXISTS contribution_score INTEGER NOT NULL DEFAULT 0')
+            )
+            connection.execute(
+                text('UPDATE "response" SET contribution_score = 0 WHERE contribution_score IS NULL')
+            )
 
 
 def get_session():
@@ -1277,6 +1355,7 @@ def serialize_project(
         questions=questions,
         image_urls=image_urls,
         reward_note=project.reward_note,
+        reward_type=project.reward_type or "points",
         budget=project.budget,
         main_category=project.main_category,
         subcategory=project.subcategory,
@@ -1305,6 +1384,7 @@ def serialize_project_ai_summary(
         input_hash=summary.input_hash,
         cached=cached,
         generated_at=summary.created_at,
+        one_liner=summary_payload.get("one_liner") if isinstance(summary_payload, dict) else None,
         summary=summary_payload,
     )
 
@@ -1334,6 +1414,7 @@ def serialize_response(
         price_max=response.price_max,
         accepted_by_creator=response.accepted_by_creator,
         likes_count=response.likes_count,
+        contribution_score=response.contribution_score,
         created_at=response.created_at,
         responder_name=responder_name,
         responder_reputation=responder_reputation,
@@ -1367,6 +1448,14 @@ def serialize_notification(notification: Notification) -> NotificationOut:
         payload=payload,
         read=notification.read,
         created_at=notification.created_at,
+    )
+
+
+def serialize_early_access_grant(grant: EarlyAccessGrant, project_title: str) -> EarlyAccessGrantOut:
+    return EarlyAccessGrantOut(
+        project_id=grant.project_id,
+        project_title=project_title,
+        granted_at=grant.granted_at,
     )
 
 
@@ -1442,6 +1531,44 @@ def compute_creator_decision_stage(responses_count: int, avg_interest: Optional[
     if avg_interest is not None and avg_interest >= 3.5:
         return "enough_signal"
     return "weak_signal"
+
+
+def compute_validation_score(
+    responses_count: int,
+    avg_interest: Optional[float],
+    acceptance_rate: float,
+    avg_price_min: Optional[float],
+) -> int:
+    score = 0
+    score += min(responses_count * 2, 30)
+    if avg_interest is not None:
+        score += int((avg_interest / 5) * 40)
+    score += int(acceptance_rate * 20)
+    if avg_price_min and avg_price_min > 0:
+        score += 10
+    return max(0, min(100, score))
+
+
+def compute_decision_suggestion(validation_score: int, avg_interest: Optional[float]) -> str:
+    if validation_score >= 70:
+        return "build"
+    if validation_score >= 40 or (avg_interest is not None and avg_interest >= 3.0):
+        return "pivot"
+    return "drop"
+
+
+def compute_contribution_score(
+    answer_texts: list[str],
+    accepted: bool,
+    likes_count: int,
+) -> int:
+    score = 0
+    total_length = sum(len(text.strip()) for text in answer_texts)
+    score += min(total_length // 20, 40)
+    if accepted:
+        score += 40
+    score += min(likes_count * 5, 20)
+    return max(0, min(100, score))
 
 
 def update_tester_streak(tester: User) -> None:
@@ -1526,6 +1653,7 @@ AI_SUMMARY_JSON_SCHEMA: dict[str, Any] = {
     "additionalProperties": False,
     "properties": {
         "summary": {"type": "string"},
+        "one_liner": {"type": "string"},
         "key_signals": {"type": "array", "items": {"type": "string"}},
         "pricing_insight": {
             "type": "object",
@@ -1551,6 +1679,7 @@ AI_SUMMARY_JSON_SCHEMA: dict[str, Any] = {
     },
     "required": [
         "summary",
+        "one_liner",
         "key_signals",
         "pricing_insight",
         "interest_insight",
@@ -1672,7 +1801,9 @@ async def _call_openai_summary(summary_input: str) -> dict[str, Any]:
                 "role": "system",
                 "content": (
                     "You summarize structured product validation feedback for a creator. "
-                    "Return concise, evidence-based JSON only. Do not use markdown."
+                    "Return concise, evidence-based JSON only. Do not use markdown. "
+                    'Include "one_liner": "One sentence (max 15 words) summarising whether this idea has market pull. '
+                    'Start with a verdict word: Strong / Moderate / Weak."'
                 ),
             },
             {
@@ -1752,7 +1883,9 @@ async def _call_gemini_summary(summary_input: str) -> dict[str, Any]:
 
     prompt = (
         "You summarize structured product validation feedback for a creator. "
-        "Return concise, evidence-based JSON only. Do not use markdown.\n\n"
+        "Return concise, evidence-based JSON only. Do not use markdown. "
+        'Include "one_liner": "One sentence (max 15 words) summarising whether this idea has market pull. '
+        'Start with a verdict word: Strong / Moderate / Weak."\n\n'
         "Analyze this validation dataset and return the requested JSON schema.\n\n"
         f"{summary_input}"
     )

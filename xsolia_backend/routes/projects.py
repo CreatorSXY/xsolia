@@ -12,6 +12,18 @@ from main import (
 
 router = APIRouter()
 
+
+def _get_response_answer_texts(session: Session, response: Response) -> list[str]:
+    answer_rows = session.exec(
+        select(ResponseAnswer.text)
+        .where(ResponseAnswer.response_id == response.id)
+        .order_by(ResponseAnswer.position.asc())
+    ).all()
+    if answer_rows:
+        return [str(value).strip() for value in answer_rows if str(value).strip()]
+    return decode_legacy_list(response.answers)
+
+
 @router.post("/projects", response_model=ProjectOut)
 def create_project(
     payload: ProjectCreate,
@@ -42,6 +54,7 @@ def create_project(
         questions=encode_legacy_list(payload.questions),
         image_urls=encode_legacy_list(payload.image_urls),
         reward_note=payload.reward_note,
+        reward_type=payload.reward_type,
         budget=payload.budget,
         main_category=payload.main_category,
         subcategory=payload.subcategory,
@@ -136,6 +149,67 @@ def list_active_projects(
     return [serialize_project(project, question_map.get(project.id, []), viewer=current_user) for project in projects]
 
 
+@router.get("/projects/trending", response_model=list[ProjectOut])
+def list_trending_projects(
+    limit: int = Query(default=10, ge=1, le=20),
+    session: Session = Depends(get_session),
+):
+    candidates = session.exec(
+        select(Project, func.count(Response.id), func.avg(Response.interest_level))
+        .select_from(Project)
+        .join(Response, Response.project_id == Project.id, isouter=True)
+        .where(
+            Project.status == "active",
+            Project.visibility == "public",
+        )
+        .group_by(Project.id)
+        .order_by(func.count(Response.id).desc(), Project.id.desc())
+        .limit(50)
+    ).all()
+    if not candidates:
+        return []
+
+    project_ids = [row[0].id for row in candidates if row[0].id is not None]
+    recent_cutoff = utc_now() - timedelta(days=7)
+    recent_rows = session.exec(
+        select(Response.project_id, func.count(Response.id))
+        .where(
+            Response.project_id.in_(project_ids),
+            Response.created_at >= recent_cutoff,
+        )
+        .group_by(Response.project_id)
+    ).all() if project_ids else []
+    recent_map = {int(row[0]): int(row[1] or 0) for row in recent_rows}
+
+    scored_rows: list[tuple[float, int, float, Project]] = []
+    for project, total_count, avg_interest in candidates:
+        total = int(total_count or 0)
+        recent = recent_map.get(project.id, 0)
+        avg_interest_value = float(avg_interest) if avg_interest is not None else 0.0
+        score = (recent * 3) + total + (avg_interest_value * 10)
+        scored_rows.append((score, total, avg_interest_value, project))
+
+    scored_rows.sort(key=lambda item: (item[0], item[1], item[3].id or 0), reverse=True)
+    selected_rows = scored_rows[:limit]
+    selected = [row[3] for row in selected_rows]
+    question_map = _build_project_questions_map(
+        session,
+        [project.id for project in selected if project.id is not None],
+    )
+    result: list[ProjectOut] = []
+    for _, total_count, avg_interest_value, project in selected_rows:
+        serialized = serialize_project(project, question_map.get(project.id, []), viewer=None)
+        result.append(
+            serialized.model_copy(
+                update={
+                    "responses_count": int(total_count or 0),
+                    "avg_interest": float(avg_interest_value) if avg_interest_value else None,
+                }
+            )
+        )
+    return result
+
+
 @router.get("/projects/mine", response_model=list[ProjectOut])
 def list_my_projects(
     status: Optional[str] = "active",
@@ -183,6 +257,143 @@ def update_project_status(
         .order_by(ProjectQuestion.position)
     ).all()
     return serialize_project(project, question_rows, viewer=current_user)
+
+
+@router.post("/projects/{project_id}/early-access/{tester_id}", response_model=EarlyAccessGrantOut)
+def grant_project_early_access(
+    project_id: int,
+    tester_id: int,
+    current_user: User = Depends(require_creator),
+    session: Session = Depends(get_session),
+):
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if project.creator_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the project creator can grant early access")
+    if (project.reward_type or "points") != "early_access":
+        raise HTTPException(status_code=400, detail="Project reward type is not early_access")
+
+    tester = session.get(User, tester_id)
+    if not tester or tester.role != "tester":
+        raise HTTPException(status_code=404, detail="Tester not found")
+
+    grant = EarlyAccessGrant(
+        project_id=project.id,
+        tester_id=tester.id,
+        granted_by=current_user.id,
+    )
+    notification_payload = {
+        "project_id": project.id,
+        "project_title": project.title,
+    }
+
+    session.add(grant)
+    session.add(
+        Notification(
+            user_id=tester.id,
+            type="early_access_granted",
+            payload_json=json.dumps(notification_payload, ensure_ascii=False),
+        )
+    )
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        existing_grant = session.exec(
+            select(EarlyAccessGrant).where(
+                EarlyAccessGrant.project_id == project.id,
+                EarlyAccessGrant.tester_id == tester.id,
+            )
+        ).first()
+        if not existing_grant:
+            raise HTTPException(status_code=400, detail="Failed to grant early access")
+        return serialize_early_access_grant(existing_grant, project.title)
+
+    session.refresh(grant)
+    return serialize_early_access_grant(grant, project.title)
+
+
+@router.get("/me/early-access", response_model=list[EarlyAccessGrantOut])
+def list_my_early_access(
+    current_user: User = Depends(require_tester),
+    session: Session = Depends(get_session),
+):
+    grant_rows = session.exec(
+        select(EarlyAccessGrant, Project.title)
+        .join(Project, Project.id == EarlyAccessGrant.project_id)
+        .where(EarlyAccessGrant.tester_id == current_user.id)
+        .order_by(EarlyAccessGrant.granted_at.desc())
+    ).all()
+
+    return [
+        serialize_early_access_grant(grant=row[0], project_title=row[1])
+        for row in grant_rows
+    ]
+
+
+@router.get("/projects/{project_id}/top-contributors", response_model=list[TopContributorOut])
+def list_project_top_contributors(
+    project_id: int,
+    current_user: User = Depends(require_creator),
+    session: Session = Depends(get_session),
+):
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if project.creator_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the project creator can view top contributors")
+
+    responses = session.exec(
+        select(Response)
+        .where(Response.project_id == project_id)
+        .order_by(
+            Response.contribution_score.desc(),
+            Response.likes_count.desc(),
+            Response.created_at.asc(),
+        )
+        .limit(20)
+    ).all()
+    if not responses:
+        return []
+
+    tester_ids = sorted({response.user_id for response in responses})
+    tester_rows = session.exec(
+        select(User.id, User.name, User.username).where(User.id.in_(tester_ids))
+    ).all()
+    tester_map = {int(row[0]): {"name": row[1], "username": row[2]} for row in tester_rows}
+
+    accepted_rows = session.exec(
+        select(
+            Response.user_id,
+            func.sum(case((Response.accepted_by_creator.is_(True), 1), else_=0)),
+        )
+        .where(
+            Response.project_id == project_id,
+            Response.user_id.in_(tester_ids),
+        )
+        .group_by(Response.user_id)
+    ).all() if tester_ids else []
+    accepted_map = {int(row[0]): int(row[1] or 0) for row in accepted_rows}
+    reputation_map = build_tester_reputation_map(session, tester_ids)
+
+    contributors: list[TopContributorOut] = []
+    for response in responses:
+        tester_profile = tester_map.get(response.user_id)
+        if not tester_profile:
+            continue
+        reputation = reputation_map.get(response.user_id, TesterReputationOut())
+        contributors.append(
+            TopContributorOut(
+                user_id=response.user_id,
+                name=tester_profile["name"],
+                username=tester_profile["username"],
+                reliability_score=reputation.reliability_score,
+                contribution_score=response.contribution_score,
+                accepted_count=accepted_map.get(response.user_id, 0),
+            )
+        )
+    return contributors
 
 
 @router.get("/projects/{project_id}", response_model=ProjectOut)
@@ -253,6 +464,11 @@ def respond_to_project(
         answers=encode_legacy_list(payload.answers),
         price_min=payload.price_min,
         price_max=payload.price_max,
+        contribution_score=compute_contribution_score(
+            answer_texts=payload.answers,
+            accepted=False,
+            likes_count=0,
+        ),
     )
 
     session.add(response)
@@ -349,6 +565,11 @@ def accept_response(
 
     response.accepted_by_creator = True
     response.accepted_at = utc_now()
+    response.contribution_score = compute_contribution_score(
+        answer_texts=_get_response_answer_texts(session, response),
+        accepted=True,
+        likes_count=response.likes_count,
+    )
 
     responder = session.get(User, response.user_id)
     if responder:
@@ -389,6 +610,11 @@ def like_response(
 
     response_like = ResponseLike(response_id=response_id, user_id=current_user.id)
     response.likes_count += 1
+    response.contribution_score = compute_contribution_score(
+        answer_texts=_get_response_answer_texts(session, response),
+        accepted=response.accepted_by_creator,
+        likes_count=response.likes_count,
+    )
 
     session.add(response_like)
     session.add(response)
@@ -487,6 +713,13 @@ def project_stats(
     interest_distribution = {score: 0 for score in range(1, 6)}
 
     if total == 0:
+        acceptance_rate = 0.0
+        validation_score = compute_validation_score(
+            responses_count=0,
+            avg_interest=None,
+            acceptance_rate=acceptance_rate,
+            avg_price_min=None,
+        )
         return ProjectStats(
             project_id=project_id,
             responses_count=0,
@@ -496,7 +729,9 @@ def project_stats(
             avg_price_min=None,
             avg_price_max=None,
             price_percentiles=None,
-            acceptance_rate=0.0,
+            acceptance_rate=acceptance_rate,
+            validation_score=validation_score,
+            decision_suggestion=compute_decision_suggestion(validation_score, None),
         )
 
     interest_rows = session.exec(
@@ -547,16 +782,27 @@ def project_stats(
         )
     ).all()
 
+    acceptance_rate = (accepted_count / total) if total > 0 else 0.0
+    avg_price_min_value = float(avg_price_min) if avg_price_min is not None else None
+    validation_score = compute_validation_score(
+        responses_count=total,
+        avg_interest=avg_interest,
+        acceptance_rate=acceptance_rate,
+        avg_price_min=avg_price_min_value,
+    )
+
     return ProjectStats(
         project_id=project_id,
         responses_count=total,
         interest_distribution=interest_distribution,
         avg_interest=avg_interest,
         interest_stddev=interest_stddev,
-        avg_price_min=float(avg_price_min) if avg_price_min is not None else None,
+        avg_price_min=avg_price_min_value,
         avg_price_max=float(avg_price_max) if avg_price_max is not None else None,
         price_percentiles=_compute_price_percentiles(price_rows),
-        acceptance_rate=accepted_count / total,
+        acceptance_rate=acceptance_rate,
+        validation_score=validation_score,
+        decision_suggestion=compute_decision_suggestion(validation_score, avg_interest),
     )
 
 
