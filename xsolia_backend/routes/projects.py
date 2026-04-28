@@ -573,28 +573,31 @@ def respond_to_project_public(
         utm_source=normalized_utm_source,
     )
 
-    session.add(response)
-    session.flush()
-
-    for idx, answer in enumerate(payload.answers):
-        question_id = project_questions[idx].id if idx < len(project_questions) else None
-        session.add(
-            ResponseAnswer(
-                response_id=response.id,
-                question_id=question_id,
-                position=idx,
-                text=answer,
-            )
-        )
-
-    if current_user and current_user.role == "tester":
-        update_tester_streak(current_user)
-        session.add(current_user)
-
     try:
+        session.add(response)
+        session.flush()
+
+        for idx, answer in enumerate(payload.answers):
+            question_id = project_questions[idx].id if idx < len(project_questions) else None
+            session.add(
+                ResponseAnswer(
+                    response_id=response.id,
+                    question_id=question_id,
+                    position=idx,
+                    text=answer,
+                )
+            )
+        if current_user and current_user.role == "tester":
+            update_tester_streak(current_user)
+            session.add(current_user)
         session.commit()
     except IntegrityError:
         session.rollback()
+        if is_guest:
+            raise HTTPException(
+                status_code=400,
+                detail="Guest submission is temporarily unavailable for this project. Please sign in as a tester and try again.",
+            )
         raise HTTPException(status_code=400, detail="Failed to submit response")
 
     session.refresh(response)
@@ -692,30 +695,31 @@ def respond_to_project(
         is_guest=guest_mode,
     )
 
-    session.add(response)
-    session.flush()
-
-    for idx, answer in enumerate(payload.answers):
-        question_id = project_questions[idx].id if idx < len(project_questions) else None
-        session.add(
-            ResponseAnswer(
-                response_id=response.id,
-                question_id=question_id,
-                position=idx,
-                text=answer,
-            )
-        )
-
-    if current_user and current_user.role == "tester":
-        update_tester_streak(current_user)
-        session.add(current_user)
-
     try:
+        session.add(response)
+        session.flush()
+
+        for idx, answer in enumerate(payload.answers):
+            question_id = project_questions[idx].id if idx < len(project_questions) else None
+            session.add(
+                ResponseAnswer(
+                    response_id=response.id,
+                    question_id=question_id,
+                    position=idx,
+                    text=answer,
+                )
+            )
+        if current_user and current_user.role == "tester":
+            update_tester_streak(current_user)
+            session.add(current_user)
         session.commit()
     except IntegrityError:
         session.rollback()
         if guest_mode:
-            raise HTTPException(status_code=400, detail="Failed to save guest response")
+            raise HTTPException(
+                status_code=400,
+                detail="Guest submission is temporarily unavailable for this project. Please sign in as a tester and try again.",
+            )
         raise HTTPException(status_code=400, detail="User already responded to this project")
 
     session.refresh(response)
