@@ -123,7 +123,7 @@ AI_REQUEST_TIMEOUT_SECONDS = int(
 BASE_URL = (
     os.getenv("XSOLIA_BASE_URL")
     or os.getenv("KROTKA_BASE_URL")
-    or "https://xsolia.com"
+    or "https://krotka.ai"
 ).rstrip("/")
 ALLOWED_ORIGINS_RAW = (
     os.getenv("XSOLIA_ALLOWED_ORIGINS")
@@ -1476,7 +1476,11 @@ def serialize_project(
 
     image_urls = decode_legacy_list(project.image_urls or "[]")
     share_token = (project.share_token or "").strip() or None
-    share_url = f"{BASE_URL}/p/{project.id}?ref={project.creator_id}" if project.id is not None else None
+    share_url = (
+        f"{BASE_URL}/answer.html?token={project.share_token}"
+        if project.share_token
+        else None
+    )
 
     return ProjectOut(
         id=project.id,

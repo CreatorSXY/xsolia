@@ -1642,7 +1642,7 @@ def test_share_link_guest_response_and_auto_register_claim():
         project_id = project["id"]
         share_token = project["share_token"]
         assert share_token
-        assert project["share_url"].endswith(f"/p/{project_id}?ref={project['creator_id']}")
+        assert project["share_url"].endswith(f"/answer.html?token={share_token}")
 
         by_token = client.get(f"/projects/by-token/{share_token}")
         assert by_token.status_code == 200

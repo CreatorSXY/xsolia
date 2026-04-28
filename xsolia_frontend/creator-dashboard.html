@@ -489,7 +489,12 @@
         if (!response.ok) {
           throw new Error(XsoliaApp.formatApiError(data, "Failed to load share link."));
         }
-        const shareUrl = String((data && data.share_url) || "").trim();
+        const shareToken = data && data.share_token;
+        const shareUrl = (data && data.share_url)
+          ? String(data.share_url).trim()
+          : shareToken
+            ? `${window.location.origin}/answer.html?token=${shareToken}`
+            : "";
         if (!shareUrl) {
           throw new Error("Share link unavailable for this topic.");
         }
