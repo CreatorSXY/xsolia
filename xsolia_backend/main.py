@@ -123,7 +123,7 @@ AI_REQUEST_TIMEOUT_SECONDS = int(
 BASE_URL = (
     os.getenv("XSOLIA_BASE_URL")
     or os.getenv("KROTKA_BASE_URL")
-    or "https://krotka.ai"
+    or "https://xsolia.com"
 ).rstrip("/")
 ALLOWED_ORIGINS_RAW = (
     os.getenv("XSOLIA_ALLOWED_ORIGINS")
