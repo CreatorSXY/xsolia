@@ -399,7 +399,9 @@
     async function loadProjectAndResponses() {
       try {
         // 1) 拉取当前 project（拿到 title / description / questions / creator_id）
-          const { response: projectRes, data: projectData } = await XsoliaApp.apiFetch(`/projects/${projectId}`);
+          const { response: projectRes, data: projectData } = await XsoliaApp.apiFetch(`/projects/${projectId}`, {
+            auth: true
+          });
           if (!projectRes.ok) {
             throw new Error(XsoliaApp.formatApiError(projectData, "Failed to load project."));
           }

@@ -1642,7 +1642,7 @@ def test_share_link_guest_response_and_auto_register_claim():
         project_id = project["id"]
         share_token = project["share_token"]
         assert share_token
-        assert project["share_url"].endswith(f"/answer.html?token={share_token}")
+        assert project["share_url"].endswith(f"/p/{project_id}?ref={project['creator_id']}")
 
         by_token = client.get(f"/projects/by-token/{share_token}")
         assert by_token.status_code == 200
@@ -1765,5 +1765,120 @@ def test_response_notifications_include_text_field():
         assert len(rows) >= 2
         assert all(isinstance(item.get("text"), str) and item["text"] for item in rows)
         assert any("accepted" in item["text"].lower() for item in rows)
+    finally:
+        main.app.dependency_overrides = {}
+
+
+def test_public_share_page_supports_guest_submission_with_attribution():
+    client = _make_client()
+    try:
+        creator = {
+            "email": "public-share-creator@example.com",
+            "name": "Creator",
+            "password": "pass1234",
+            "role": "creator",
+            "subscription": "creator_basic",
+        }
+        _register(client, creator)
+        creator_login = _login(client, creator["email"], creator["password"])
+
+        created = client.post(
+            "/projects",
+            json={
+                "title": "Public share topic",
+                "description": "A valid description for public share submission tests.",
+                "target_audience": "Makers",
+                "questions": ["Would you pay for this?"],
+                "budget": 20,
+                "main_category": "digital",
+                "subcategory": "saas",
+                "visibility": "public",
+            },
+            headers=_auth_headers(creator_login["access_token"]),
+        )
+        assert created.status_code == 200
+        project_id = created.json()["id"]
+
+        fetched = client.get(f"/public/projects/{project_id}?source_ref=1&utm_source=twitter")
+        assert fetched.status_code == 200
+        assert fetched.json()["id"] == project_id
+
+        submitted = client.post(
+            f"/public/projects/{project_id}/responses?source_ref=123&utm_source=wechat",
+            json={
+                "interest_level": 4,
+                "answers": ["Looks useful"],
+                "guest_name": "Guest Tester",
+                "guest_email": "guest@example.com",
+            },
+        )
+        assert submitted.status_code == 200
+        response_id = submitted.json()["response_id"]
+        assert submitted.json()["is_guest"] is True
+
+        response_rows = client.get(
+            f"/projects/{project_id}/responses",
+            headers=_auth_headers(creator_login["access_token"]),
+        )
+        assert response_rows.status_code == 200
+        rows = response_rows.json()
+        target = next((row for row in rows if row["id"] == response_id), None)
+        assert target is not None
+        assert target["is_guest"] is True
+        assert target["guest_email"] == "guest@example.com"
+        assert target["guest_name"] == "Guest Tester"
+        assert target["source_ref"] == 123
+        assert target["utm_source"] == "wechat"
+
+        metrics = client.get(
+            f"/projects/{project_id}/share-metrics",
+            headers=_auth_headers(creator_login["access_token"]),
+        )
+        assert metrics.status_code == 200
+        payload = metrics.json()
+        assert payload["external_views"] >= 1
+        assert payload["external_responses"] >= 1
+    finally:
+        main.app.dependency_overrides = {}
+
+
+def test_tester_only_public_page_is_read_only_for_guest():
+    client = _make_client()
+    try:
+        creator = {
+            "email": "tester-only-public-creator@example.com",
+            "name": "Creator",
+            "password": "pass1234",
+            "role": "creator",
+            "subscription": "creator_basic",
+        }
+        _register(client, creator)
+        creator_login = _login(client, creator["email"], creator["password"])
+
+        created = client.post(
+            "/projects",
+            json={
+                "title": "Tester-only public page",
+                "description": "A valid description for tester-only public read behavior.",
+                "target_audience": "Testers",
+                "questions": ["Would you use this?"],
+                "budget": 10,
+                "main_category": "digital",
+                "subcategory": "saas",
+                "visibility": "tester_only",
+            },
+            headers=_auth_headers(creator_login["access_token"]),
+        )
+        assert created.status_code == 200
+        project_id = created.json()["id"]
+
+        read_ok = client.get(f"/public/projects/{project_id}")
+        assert read_ok.status_code == 200
+
+        submit_blocked = client.post(
+            f"/public/projects/{project_id}/responses",
+            json={"interest_level": 3, "answers": ["Interesting"]},
+        )
+        assert submit_blocked.status_code == 401
     finally:
         main.app.dependency_overrides = {}

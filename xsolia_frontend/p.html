@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Validation Topic · Krotka.ai by xSolia</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/theme.css?v=20260424-gsap" />
+</head>
+<body class="min-h-screen flex flex-col">
+  <div id="navbar"></div>
+
+  <main class="flex-1 container form-shell" style="padding-top:1.5rem; padding-bottom:2rem;">
+    <section class="section" style="width:100%; max-width:760px; margin:0 auto;">
+      <div class="x-card form-panel motion-reveal">
+        <h1 id="title" style="font-size:1.4rem; font-weight:700; margin-bottom:0.3rem;">Loading...</h1>
+        <p id="description" style="font-size:0.9rem; color:#4b5563; margin-bottom:0.4rem;"></p>
+        <p id="meta" style="font-size:0.8rem; color:#6b7280;"></p>
+        <div id="reward" class="hidden" style="margin-top:0.6rem; padding:0.6rem 0.7rem; border-radius:10px; font-size:0.82rem;"></div>
+        <p id="readOnlyNote" class="hidden" style="margin-top:0.6rem; font-size:0.82rem; color:#1d4ed8;"></p>
+
+        <form id="form" class="space-y-4 hidden" style="margin-top:1rem;">
+          <div>
+            <label style="font-size:0.85rem; color:#374151;">Your interest in this idea (1–5)</label>
+            <select id="interest" class="x-input" style="max-width:240px; margin-top:0.25rem;">
+              <option value="5">5 - Very interested</option>
+              <option value="4">4 - Interested</option>
+              <option value="3">3 - Neutral</option>
+              <option value="2">2 - Not very interested</option>
+              <option value="1">1 - Not interested</option>
+            </select>
+          </div>
+
+          <div id="questionsWrap" class="space-y-3"></div>
+
+          <div style="display:flex; gap:0.6rem;">
+            <div style="flex:1;">
+              <label style="font-size:0.8rem; color:#6b7280;">Min price (optional)</label>
+              <input id="priceMin" type="number" min="0" class="x-input" />
+            </div>
+            <div style="flex:1;">
+              <label style="font-size:0.8rem; color:#6b7280;">Max price (optional)</label>
+              <input id="priceMax" type="number" min="0" class="x-input" />
+            </div>
+          </div>
+
+          <div id="guestFields" class="space-y-2">
+            <p style="font-size:0.8rem; color:#6b7280;">Optional contact (so creator can follow up)</p>
+            <input id="guestName" type="text" class="x-input" placeholder="Your name (optional)" />
+            <input id="guestEmail" type="email" class="x-input" placeholder="Your email (optional)" />
+          </div>
+
+          <button id="submitBtn" type="submit" class="x-btn-primary" style="width:100%; justify-content:center;">
+            Submit feedback
+          </button>
+        </form>
+
+        <p id="error" style="font-size:0.85rem; color:#f97373; margin-top:0.75rem; display:none;"></p>
+        <p id="success" style="font-size:0.85rem; color:#16a34a; margin-top:0.75rem; display:none;"></p>
+
+        <div id="convertPanel" class="hidden" style="margin-top:1rem; border:1px solid rgba(42,39,34,0.16); border-radius:12px; padding:0.8rem;">
+          <h3 style="font-size:1rem; font-weight:700; margin-bottom:0.25rem;">Save your progress and track rewards</h3>
+          <p style="font-size:0.82rem; color:#6b7280; margin-bottom:0.6rem;">Create a free tester account to keep your contribution history.</p>
+          <form id="convertForm" class="space-y-2">
+            <input id="convertName" type="text" class="x-input" placeholder="Name" />
+            <input id="convertEmail" type="email" class="x-input" placeholder="Email" />
+            <input id="convertPassword" type="password" class="x-input" placeholder="Password (min 8 chars)" />
+            <button id="convertBtn" type="submit" class="x-btn-primary" style="width:100%; justify-content:center;">Create account</button>
+          </form>
+          <button id="skipBtn" type="button" class="x-btn-secondary" style="width:100%; justify-content:center; margin-top:0.5rem;">Skip for now</button>
+          <p id="convertError" style="font-size:0.82rem; color:#f97373; margin-top:0.5rem; display:none;"></p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer style="text-align:center; padding:1.5rem 0; font-size:0.75rem; color:var(--ink-faint);">
+    © 2026 Krotka.ai by xSolia
+  </footer>
+
+  <script src="js/app.js?v=20260424-gsap"></script>
+  <script src="js/logo.js"></script>
+  <script src="js/nav.js"></script>
+  <script>
+    const session = XsoliaApp.getSession();
+    const params = new URLSearchParams(window.location.search);
+    const pathMatch = window.location.pathname.match(/\/p\/(\d+)/);
+    const projectId = params.get("id") || (pathMatch ? pathMatch[1] : "");
+    const sourceRef = params.get("ref") || "";
+    const utmSource = params.get("utm_source") || "";
+    let currentProject = null;
+    let latestResponseId = null;
+
+    const titleEl = document.getElementById("title");
+    const descriptionEl = document.getElementById("description");
+    const metaEl = document.getElementById("meta");
+    const rewardEl = document.getElementById("reward");
+    const readOnlyNoteEl = document.getElementById("readOnlyNote");
+    const formEl = document.getElementById("form");
+    const questionsWrap = document.getElementById("questionsWrap");
+    const errorEl = document.getElementById("error");
+    const successEl = document.getElementById("success");
+    const convertPanel = document.getElementById("convertPanel");
+
+    function showError(message) {
+      errorEl.textContent = message;
+      errorEl.style.display = "block";
+    }
+
+    async function loadProject() {
+      if (!projectId) {
+        showError("Missing project id.");
+        return;
+      }
+      const query = new URLSearchParams();
+      if (sourceRef) query.set("source_ref", sourceRef);
+      if (utmSource) query.set("utm_source", utmSource);
+      const suffix = query.toString() ? `?${query.toString()}` : "";
+      const { response, data } = await XsoliaApp.apiFetch(`/public/projects/${projectId}${suffix}`, {
+        auth: Boolean(session && session.accessToken),
+        disableAuthRedirect: true,
+      });
+      if (!response.ok) {
+        showError(XsoliaApp.formatApiError(data, "This validation topic is not available."));
+        return;
+      }
+      currentProject = data;
+      if (!currentProject.allow_indexing) {
+        const meta = document.createElement("meta");
+        meta.name = "robots";
+        meta.content = "noindex, nofollow";
+        document.head.appendChild(meta);
+      }
+
+      titleEl.textContent = currentProject.title;
+      descriptionEl.textContent = currentProject.description || "";
+      metaEl.textContent = `Target: ${currentProject.target_audience || "Not specified"} · Budget: $${currentProject.budget || 0}`;
+
+      rewardEl.classList.add("hidden");
+      if (currentProject.reward_type === "early_access") {
+        rewardEl.textContent = "Answer to compete for early access to this product.";
+        rewardEl.style.border = "1px solid rgba(215,98,53,0.35)";
+        rewardEl.style.background = "rgba(215,98,53,0.12)";
+        rewardEl.style.color = "#7c2d12";
+        rewardEl.classList.remove("hidden");
+      } else if (currentProject.reward_note) {
+        rewardEl.textContent = `Reward: ${currentProject.reward_note}`;
+        rewardEl.style.border = "1px solid rgba(42,39,34,0.16)";
+        rewardEl.style.background = "rgba(255,255,255,0.66)";
+        rewardEl.style.color = "#4b5563";
+        rewardEl.classList.remove("hidden");
+      }
+
+      questionsWrap.innerHTML = "";
+      const questions = Array.isArray(currentProject.questions) ? currentProject.questions : [];
+      questions.forEach((q, index) => {
+        const item = document.createElement("div");
+        const label = document.createElement("label");
+        label.textContent = `Q${index + 1}. ${q}`;
+        label.style.fontSize = "0.84rem";
+        label.style.color = "#374151";
+        label.style.display = "block";
+        label.style.marginBottom = "0.25rem";
+        const input = document.createElement("textarea");
+        input.className = "x-textarea public-answer";
+        input.rows = 3;
+        item.appendChild(label);
+        item.appendChild(input);
+        questionsWrap.appendChild(item);
+      });
+
+      const isGuest = !session.userId || !session.accessToken;
+      if (isGuest && currentProject.visibility === "tester_only") {
+        readOnlyNoteEl.textContent = "This topic is tester-only. Please log in to submit answers.";
+        readOnlyNoteEl.classList.remove("hidden");
+      } else {
+        readOnlyNoteEl.classList.add("hidden");
+      }
+
+      formEl.classList.remove("hidden");
+    }
+
+    function buildPublicSubmitPath() {
+      const query = new URLSearchParams();
+      if (sourceRef) query.set("source_ref", sourceRef);
+      if (utmSource) query.set("utm_source", utmSource);
+      return `/public/projects/${projectId}/responses${query.toString() ? `?${query.toString()}` : ""}`;
+    }
+
+    async function submitResponse(event) {
+      event.preventDefault();
+      errorEl.style.display = "none";
+      successEl.style.display = "none";
+
+      const isGuest = !session.userId || !session.accessToken;
+      if (isGuest && currentProject && currentProject.visibility === "tester_only") {
+        showError("Please log in as a tester to submit this topic.");
+        return;
+      }
+
+      const answers = Array.from(document.querySelectorAll(".public-answer")).map((el) => el.value.trim());
+      const payload = {
+        interest_level: Number(document.getElementById("interest").value || 3),
+        answers,
+        price_min: document.getElementById("priceMin").value ? Number(document.getElementById("priceMin").value) : null,
+        price_max: document.getElementById("priceMax").value ? Number(document.getElementById("priceMax").value) : null,
+        guest_name: isGuest ? (document.getElementById("guestName").value || "").trim() || null : null,
+        guest_email: isGuest ? (document.getElementById("guestEmail").value || "").trim() || null : null,
+      };
+
+      if (!answers.some(Boolean)) {
+        showError("Please answer at least one question.");
+        return;
+      }
+
+      const submitBtn = document.getElementById("submitBtn");
+      const originalText = submitBtn.textContent;
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Submitting...";
+      try {
+        const { response, data } = await XsoliaApp.apiFetch(buildPublicSubmitPath(), {
+          method: "POST",
+          auth: !isGuest,
+          disableAuthRedirect: true,
+          body: payload,
+        });
+        if (!response.ok) {
+          showError(XsoliaApp.formatApiError(data, "Failed to submit feedback."));
+          return;
+        }
+
+        latestResponseId = data && data.response_id ? Number(data.response_id) : null;
+        successEl.textContent = "You've contributed to this idea. Thanks for sharing your signal.";
+        successEl.style.display = "block";
+
+        if (isGuest) {
+          const guestName = payload.guest_name || "";
+          const guestEmail = payload.guest_email || "";
+          document.getElementById("convertName").value = guestName;
+          document.getElementById("convertEmail").value = guestEmail;
+          convertPanel.classList.remove("hidden");
+        } else {
+          window.location.href = "tester-dashboard.html";
+        }
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+      }
+    }
+
+    async function convertGuest(event) {
+      event.preventDefault();
+      const convertErrorEl = document.getElementById("convertError");
+      convertErrorEl.style.display = "none";
+
+      const name = document.getElementById("convertName").value.trim();
+      const email = document.getElementById("convertEmail").value.trim().toLowerCase();
+      const password = document.getElementById("convertPassword").value;
+      if (!name || !email || !password) {
+        convertErrorEl.textContent = "Please complete all fields.";
+        convertErrorEl.style.display = "block";
+        return;
+      }
+
+      const convertBtn = document.getElementById("convertBtn");
+      const original = convertBtn.textContent;
+      convertBtn.disabled = true;
+      convertBtn.textContent = "Creating account...";
+      try {
+        const { response, data } = await XsoliaApp.apiFetch("/register/from-guest", {
+          method: "POST",
+          body: {
+            name,
+            email,
+            password,
+            guest_response_ids: latestResponseId ? [latestResponseId] : [],
+          },
+        });
+        if (!response.ok) {
+          convertErrorEl.textContent = XsoliaApp.formatApiError(data, "Failed to create account.");
+          convertErrorEl.style.display = "block";
+          return;
+        }
+        XsoliaApp.setSession(data);
+        window.location.href = "tester-dashboard.html?welcome=1";
+      } finally {
+        convertBtn.disabled = false;
+        convertBtn.textContent = original;
+      }
+    }
+
+    document.getElementById("form").addEventListener("submit", submitResponse);
+    document.getElementById("convertForm").addEventListener("submit", convertGuest);
+    document.getElementById("skipBtn").addEventListener("click", () => {
+      convertPanel.classList.add("hidden");
+      successEl.innerHTML = "You can sign up later to track your rewards. <a href=\"register.html\" style=\"color:#2563eb;\">Create account</a>";
+      successEl.style.display = "block";
+    });
+
+    loadProject();
+  </script>
+</body>
+</html>

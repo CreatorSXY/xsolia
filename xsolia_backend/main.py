@@ -346,6 +346,7 @@ class Project(SQLModel, table=True):
     allow_indexing: bool = False
     source_innovation_id: Optional[int] = Field(default=None, index=True)
     share_token: Optional[str] = Field(default=None, index=True)
+    external_views: int = Field(default=0)
 
 
 class ProjectQuestion(SQLModel, table=True):
@@ -523,6 +524,7 @@ class ProjectOut(SQLModel):
     source_innovation_id: Optional[int] = None
     share_token: Optional[str] = None
     share_url: Optional[str] = None
+    external_views: int = 0
     responses_count: int = 0
     avg_interest: Optional[float] = None
 
@@ -552,6 +554,11 @@ class Response(SQLModel, table=True):
     accepted_at: Optional[datetime] = None
     likes_count: int = 0
     contribution_score: int = Field(default=0)
+    is_guest: bool = Field(default=False)
+    guest_email: Optional[str] = None
+    guest_name: Optional[str] = None
+    source_ref: Optional[int] = None
+    utm_source: Optional[str] = None
     created_at: datetime = Field(default_factory=utc_now)
 
 
@@ -606,6 +613,37 @@ class ResponseCreate(SQLModel):
         return self
 
 
+class PublicResponseCreate(ResponseCreate):
+    guest_email: Optional[str] = None
+    guest_name: Optional[str] = None
+
+    @field_validator("guest_email")
+    @classmethod
+    def validate_guest_email(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        cleaned = value.strip().lower()
+        if not cleaned:
+            return None
+        if len(cleaned) > 200:
+            raise ValueError("Guest email is too long")
+        if "@" not in cleaned:
+            raise ValueError("Guest email is invalid")
+        return cleaned
+
+    @field_validator("guest_name")
+    @classmethod
+    def validate_guest_name(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        if not cleaned:
+            return None
+        if len(cleaned) > 100:
+            raise ValueError("Guest name is too long")
+        return cleaned
+
+
 class ResponseCommentCreate(SQLModel):
     text: str
 
@@ -632,6 +670,11 @@ class ResponseOut(SQLModel):
     accepted_by_creator: bool
     likes_count: int
     contribution_score: int = 0
+    is_guest: bool = False
+    guest_email: Optional[str] = None
+    guest_name: Optional[str] = None
+    source_ref: Optional[int] = None
+    utm_source: Optional[str] = None
     created_at: datetime
     responder_name: Optional[str] = None
     responder_reputation: Optional[TesterReputationOut] = None
@@ -749,6 +792,12 @@ class ProjectStats(SQLModel):
     acceptance_rate: float
     validation_score: int = 0
     decision_suggestion: str = "drop"
+
+
+class ShareMetricsOut(SQLModel):
+    project_id: int
+    external_views: int = 0
+    external_responses: int = 0
 
 
 class Innovation(SQLModel, table=True):
@@ -975,12 +1024,17 @@ def ensure_project_columns() -> None:
                 connection.execute(
                     text('ALTER TABLE "project" ADD COLUMN share_token VARCHAR')
                 )
+            if "external_views" not in existing_columns:
+                connection.execute(
+                    text('ALTER TABLE "project" ADD COLUMN external_views INTEGER NOT NULL DEFAULT 0')
+                )
             connection.execute(text('UPDATE "project" SET image_urls = \'[]\' WHERE image_urls IS NULL OR trim(image_urls) = \'\''))
             connection.execute(text('UPDATE "project" SET visibility = \'public\' WHERE visibility IS NULL OR trim(visibility) = \'\''))
             connection.execute(text('UPDATE "project" SET visibility = \'unlisted\' WHERE visibility = \'private_link\''))
             connection.execute(text('UPDATE "project" SET detail_level = \'concept_summary\' WHERE detail_level IS NULL OR trim(detail_level) = \'\''))
             connection.execute(text("UPDATE \"project\" SET allow_indexing = 0 WHERE allow_indexing IS NULL"))
             connection.execute(text("UPDATE \"project\" SET reward_type = 'points' WHERE reward_type IS NULL OR trim(reward_type) = ''"))
+            connection.execute(text("UPDATE \"project\" SET external_views = 0 WHERE external_views IS NULL"))
             connection.execute(text('CREATE INDEX IF NOT EXISTS ix_project_source_innovation_id ON "project" (source_innovation_id)'))
             connection.execute(text('CREATE INDEX IF NOT EXISTS ix_project_share_token ON "project" (share_token)'))
             return
@@ -993,12 +1047,14 @@ def ensure_project_columns() -> None:
             connection.execute(text('ALTER TABLE "project" ADD COLUMN IF NOT EXISTS source_innovation_id INTEGER'))
             connection.execute(text('ALTER TABLE "project" ADD COLUMN IF NOT EXISTS reward_type VARCHAR NOT NULL DEFAULT \'points\''))
             connection.execute(text('ALTER TABLE "project" ADD COLUMN IF NOT EXISTS share_token VARCHAR'))
+            connection.execute(text('ALTER TABLE "project" ADD COLUMN IF NOT EXISTS external_views INTEGER NOT NULL DEFAULT 0'))
             connection.execute(text("UPDATE \"project\" SET image_urls = '[]' WHERE image_urls IS NULL OR btrim(image_urls) = ''"))
             connection.execute(text("UPDATE \"project\" SET visibility = 'public' WHERE visibility IS NULL OR btrim(visibility) = ''"))
             connection.execute(text("UPDATE \"project\" SET visibility = 'unlisted' WHERE visibility = 'private_link'"))
             connection.execute(text("UPDATE \"project\" SET detail_level = 'concept_summary' WHERE detail_level IS NULL OR btrim(detail_level) = ''"))
             connection.execute(text("UPDATE \"project\" SET allow_indexing = FALSE WHERE allow_indexing IS NULL"))
             connection.execute(text("UPDATE \"project\" SET reward_type = 'points' WHERE reward_type IS NULL OR btrim(reward_type) = ''"))
+            connection.execute(text("UPDATE \"project\" SET external_views = 0 WHERE external_views IS NULL"))
             connection.execute(text('CREATE INDEX IF NOT EXISTS ix_project_source_innovation_id ON "project" (source_innovation_id)'))
             connection.execute(text('CREATE INDEX IF NOT EXISTS ix_project_share_token ON "project" (share_token)'))
 
@@ -1015,8 +1071,31 @@ def ensure_response_columns() -> None:
                 connection.execute(
                     text('ALTER TABLE "response" ADD COLUMN contribution_score INTEGER NOT NULL DEFAULT 0')
                 )
+            if "is_guest" not in existing_columns:
+                connection.execute(
+                    text('ALTER TABLE "response" ADD COLUMN is_guest BOOLEAN NOT NULL DEFAULT 0')
+                )
+            if "guest_email" not in existing_columns:
+                connection.execute(
+                    text('ALTER TABLE "response" ADD COLUMN guest_email VARCHAR')
+                )
+            if "guest_name" not in existing_columns:
+                connection.execute(
+                    text('ALTER TABLE "response" ADD COLUMN guest_name VARCHAR')
+                )
+            if "source_ref" not in existing_columns:
+                connection.execute(
+                    text('ALTER TABLE "response" ADD COLUMN source_ref INTEGER')
+                )
+            if "utm_source" not in existing_columns:
+                connection.execute(
+                    text('ALTER TABLE "response" ADD COLUMN utm_source VARCHAR')
+                )
             connection.execute(
                 text('UPDATE "response" SET contribution_score = 0 WHERE contribution_score IS NULL')
+            )
+            connection.execute(
+                text('UPDATE "response" SET is_guest = 0 WHERE is_guest IS NULL')
             )
             # SQLite cannot ALTER COLUMN to drop NOT NULL. Existing deployments that still
             # have response.user_id as NOT NULL require table recreation to support guest responses.
@@ -1027,7 +1106,25 @@ def ensure_response_columns() -> None:
                 text('ALTER TABLE "response" ADD COLUMN IF NOT EXISTS contribution_score INTEGER NOT NULL DEFAULT 0')
             )
             connection.execute(
+                text('ALTER TABLE "response" ADD COLUMN IF NOT EXISTS is_guest BOOLEAN NOT NULL DEFAULT FALSE')
+            )
+            connection.execute(
+                text('ALTER TABLE "response" ADD COLUMN IF NOT EXISTS guest_email VARCHAR')
+            )
+            connection.execute(
+                text('ALTER TABLE "response" ADD COLUMN IF NOT EXISTS guest_name VARCHAR')
+            )
+            connection.execute(
+                text('ALTER TABLE "response" ADD COLUMN IF NOT EXISTS source_ref INTEGER')
+            )
+            connection.execute(
+                text('ALTER TABLE "response" ADD COLUMN IF NOT EXISTS utm_source VARCHAR')
+            )
+            connection.execute(
                 text('UPDATE "response" SET contribution_score = 0 WHERE contribution_score IS NULL')
+            )
+            connection.execute(
+                text('UPDATE "response" SET is_guest = FALSE WHERE is_guest IS NULL')
             )
             connection.execute(
                 text('ALTER TABLE "response" ALTER COLUMN user_id DROP NOT NULL')
@@ -1123,6 +1220,18 @@ def can_answer_project(project: Project, current_user: User) -> bool:
     if current_user.id == project.creator_id:
         return False
     return can_view_project(project, current_user)
+
+
+def can_view_project_public_page(project: Project, current_user: Optional[User]) -> bool:
+    if current_user and current_user.id == project.creator_id:
+        return True
+
+    visibility = (project.visibility or "public").strip().lower()
+    if visibility in {"public", "tester_only", "unlisted"}:
+        return True
+    if visibility == "invite_only":
+        return False
+    return False
 
 
 def _compute_reliability_score(
@@ -1367,7 +1476,7 @@ def serialize_project(
 
     image_urls = decode_legacy_list(project.image_urls or "[]")
     share_token = (project.share_token or "").strip() or None
-    share_url = f"{BASE_URL}/answer.html?token={share_token}" if share_token else None
+    share_url = f"{BASE_URL}/p/{project.id}?ref={project.creator_id}" if project.id is not None else None
 
     return ProjectOut(
         id=project.id,
@@ -1389,6 +1498,7 @@ def serialize_project(
         source_innovation_id=project.source_innovation_id,
         share_token=share_token,
         share_url=share_url,
+        external_views=int(project.external_views or 0),
     )
 
 
@@ -1440,6 +1550,11 @@ def serialize_response(
         accepted_by_creator=response.accepted_by_creator,
         likes_count=response.likes_count,
         contribution_score=response.contribution_score,
+        is_guest=bool(response.is_guest),
+        guest_email=response.guest_email,
+        guest_name=response.guest_name,
+        source_ref=response.source_ref,
+        utm_source=response.utm_source,
         created_at=response.created_at,
         responder_name=responder_name,
         responder_reputation=responder_reputation,

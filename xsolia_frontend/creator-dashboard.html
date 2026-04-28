@@ -494,7 +494,12 @@
           throw new Error("Share link unavailable for this topic.");
         }
         await navigator.clipboard.writeText(shareUrl);
-        setStatus("Link copied!");
+        const metrics = await XsoliaApp.apiFetch(`/projects/${projectId}/share-metrics`, { auth: true });
+        if (metrics.response.ok && metrics.data) {
+          setStatus(`Link copied! Views: ${Number(metrics.data.external_views || 0)} · External responses: ${Number(metrics.data.external_responses || 0)}`);
+        } else {
+          setStatus("Link copied!");
+        }
       } catch (err) {
         setStatus(err.message || "Failed to copy link.");
       }
@@ -979,7 +984,7 @@
           shareLinkBtn.style.fontSize = "0.8rem";
           shareLinkBtn.style.paddingInline = "0.8rem";
           shareLinkBtn.style.paddingBlock = "0.25rem";
-          shareLinkBtn.textContent = "Share link";
+          shareLinkBtn.textContent = "Share validation";
           shareLinkBtn.addEventListener("click", async () => {
             const originalText = shareLinkBtn.textContent;
             shareLinkBtn.disabled = true;

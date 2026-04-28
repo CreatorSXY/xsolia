@@ -11,6 +11,10 @@ from main import (
 )
 
 router = APIRouter()
+_PUBLIC_GUEST_WINDOW_SECONDS = 600
+_PUBLIC_GUEST_MAX_SUBMISSIONS_PER_WINDOW = 2
+_PUBLIC_GUEST_ATTEMPTS: dict[str, list[float]] = {}
+_PUBLIC_GUEST_ATTEMPTS_LOCK = Lock()
 
 
 def _get_response_answer_texts(session: Session, response: Response) -> list[str]:
@@ -22,6 +26,19 @@ def _get_response_answer_texts(session: Session, response: Response) -> list[str
     if answer_rows:
         return [str(value).strip() for value in answer_rows if str(value).strip()]
     return decode_legacy_list(response.answers)
+
+
+def _is_guest_rate_limited(project_id: int, client_host: str) -> bool:
+    key = f"{project_id}:{client_host}"
+    now = time.time()
+    with _PUBLIC_GUEST_ATTEMPTS_LOCK:
+        attempts = [ts for ts in _PUBLIC_GUEST_ATTEMPTS.get(key, []) if now - ts <= _PUBLIC_GUEST_WINDOW_SECONDS]
+        if len(attempts) >= _PUBLIC_GUEST_MAX_SUBMISSIONS_PER_WINDOW:
+            _PUBLIC_GUEST_ATTEMPTS[key] = attempts
+            return True
+        attempts.append(now)
+        _PUBLIC_GUEST_ATTEMPTS[key] = attempts
+    return False
 
 
 @router.post("/projects", response_model=ProjectOut)
@@ -447,6 +464,168 @@ def get_project_by_share_token(
     return serialize_project(project, question_rows, viewer=current_user)
 
 
+@router.get("/public/projects/{project_id}", response_model=ProjectOut)
+def get_public_project(
+    project_id: int,
+    source_ref: Optional[int] = Query(default=None),
+    utm_source: Optional[str] = Query(default=None, max_length=64),
+    current_user: Optional[User] = Depends(get_optional_current_user),
+    session: Session = Depends(get_session),
+):
+    project = session.get(Project, project_id)
+    if not project or project.status != "active":
+        raise HTTPException(status_code=404, detail="Project not found")
+    if not can_view_project_public_page(project, current_user):
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    project.external_views = int(project.external_views or 0) + 1
+    session.add(project)
+    session.commit()
+    session.refresh(project)
+
+    question_rows = session.exec(
+        select(ProjectQuestion)
+        .where(ProjectQuestion.project_id == project.id)
+        .order_by(ProjectQuestion.position)
+    ).all()
+    return serialize_project(project, question_rows, viewer=current_user)
+
+
+@router.post("/public/projects/{project_id}/responses")
+def respond_to_project_public(
+    project_id: int,
+    payload: PublicResponseCreate,
+    request: Request,
+    source_ref: Optional[int] = Query(default=None),
+    utm_source: Optional[str] = Query(default=None, max_length=64),
+    current_user: Optional[User] = Depends(get_optional_current_user),
+    session: Session = Depends(get_session),
+):
+    project = session.get(Project, project_id)
+    if not project or project.status != "active":
+        raise HTTPException(status_code=404, detail="Project not found or inactive")
+    if not can_view_project_public_page(project, current_user):
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    visibility = (project.visibility or "public").strip().lower()
+    if visibility == "tester_only" and current_user is None:
+        raise HTTPException(status_code=401, detail="Login required to submit answers")
+
+    responder_user_id: Optional[int] = None
+    is_guest = current_user is None
+    if current_user is None:
+        client_host = request.client.host if request.client and request.client.host else "unknown"
+        if _is_guest_rate_limited(project_id, client_host):
+            raise HTTPException(status_code=429, detail="Too many submissions from this IP, please try later")
+        if payload.guest_email:
+            duplicate_by_email = session.exec(
+                select(Response.id).where(
+                    Response.project_id == project_id,
+                    Response.guest_email == payload.guest_email,
+                )
+            ).first()
+            if duplicate_by_email:
+                raise HTTPException(status_code=400, detail="A response with this email already exists")
+    else:
+        if not can_answer_project(project, current_user):
+            if project.creator_id == current_user.id:
+                raise HTTPException(status_code=403, detail="Project creators cannot respond to their own project")
+            raise HTTPException(status_code=403, detail="Project is private or tester-only")
+        responder_user_id = current_user.id
+        existing = session.exec(
+            select(Response.id).where(
+                Response.project_id == project_id,
+                Response.user_id == current_user.id,
+            )
+        ).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="User already responded to this project")
+
+    project_questions = session.exec(
+        select(ProjectQuestion)
+        .where(ProjectQuestion.project_id == project_id)
+        .order_by(ProjectQuestion.position)
+    ).all()
+
+    if project_questions and len(payload.answers) != len(project_questions):
+        raise HTTPException(
+            status_code=422,
+            detail="answers length must match the number of project questions",
+        )
+
+    normalized_utm_source = (utm_source or "").strip().lower() or None
+    response = Response(
+        project_id=project_id,
+        user_id=responder_user_id,
+        interest_level=payload.interest_level,
+        answers=encode_legacy_list(payload.answers),
+        price_min=payload.price_min,
+        price_max=payload.price_max,
+        contribution_score=compute_contribution_score(
+            answer_texts=payload.answers,
+            accepted=False,
+            likes_count=0,
+        ),
+        is_guest=is_guest,
+        guest_email=payload.guest_email if is_guest else None,
+        guest_name=payload.guest_name if is_guest else None,
+        source_ref=source_ref,
+        utm_source=normalized_utm_source,
+    )
+
+    session.add(response)
+    session.flush()
+
+    for idx, answer in enumerate(payload.answers):
+        question_id = project_questions[idx].id if idx < len(project_questions) else None
+        session.add(
+            ResponseAnswer(
+                response_id=response.id,
+                question_id=question_id,
+                position=idx,
+                text=answer,
+            )
+        )
+
+    if current_user and current_user.role == "tester":
+        update_tester_streak(current_user)
+        session.add(current_user)
+
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(status_code=400, detail="Failed to submit response")
+
+    session.refresh(response)
+    return {"ok": True, "response_id": response.id, "is_guest": is_guest}
+
+
+@router.get("/projects/{project_id}/share-metrics", response_model=ShareMetricsOut)
+def get_project_share_metrics(
+    project_id: int,
+    current_user: User = Depends(require_creator),
+    session: Session = Depends(get_session),
+):
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if project.creator_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the project creator can view share metrics")
+
+    external_responses = session.exec(
+        select(func.count(Response.id)).where(
+            Response.project_id == project_id,
+            Response.is_guest.is_(True),
+        )
+    ).one()
+    return ShareMetricsOut(
+        project_id=project_id,
+        external_views=int(project.external_views or 0),
+        external_responses=int(external_responses or 0),
+    )
+
+
 @router.post("/projects/{project_id}/respond")
 def respond_to_project(
     project_id: int,
@@ -510,6 +689,7 @@ def respond_to_project(
             accepted=False,
             likes_count=0,
         ),
+        is_guest=guest_mode,
     )
 
     session.add(response)
