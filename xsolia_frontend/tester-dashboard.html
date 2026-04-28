@@ -163,6 +163,41 @@
       </div>
     </section>
 
+    <section id="testerWelcomeMessage" class="section x-card hidden motion-reveal" style="max-width:960px;margin-left:auto;margin-right:auto;border-color:rgba(29,78,216,0.26); background:rgba(37,99,235,0.08);">
+      <p style="font-size:0.9rem; color:#1d4ed8; margin:0;">
+        Account created — your guest response has been saved to your profile.
+      </p>
+    </section>
+
+    <section id="testerOnboardingPanel" class="section x-card hidden motion-reveal" style="max-width:960px;margin-left:auto;margin-right:auto;">
+      <div class="flex flex-wrap items-center justify-between gap-3" style="margin-bottom:0.65rem;">
+        <div>
+          <h2 style="font-size:1.05rem;font-weight:800;margin:0;">Welcome — here&apos;s how it works</h2>
+          <p style="font-size:0.82rem;color:#6b7280;margin-top:0.35rem;">Quality answers get accepted by creators — building your reputation score.</p>
+        </div>
+        <button id="closeTesterOnboardingBtn" type="button" class="x-btn-secondary" style="font-size:0.76rem;">Hide</button>
+      </div>
+      <div class="grid md:grid-cols-3 gap-3">
+        <div class="x-card" style="display:flex; align-items:center; gap:0.5rem;">
+          <span style="font-size:1.05rem;">①</span>
+          <span style="font-size:0.84rem;">Pick a topic that interests you</span>
+        </div>
+        <div class="x-card" style="display:flex; align-items:center; gap:0.5rem;">
+          <span style="font-size:1.05rem;">②</span>
+          <span style="font-size:0.84rem;">Answer a few focused questions</span>
+        </div>
+        <div class="x-card" style="display:flex; align-items:center; gap:0.5rem;">
+          <span style="font-size:1.05rem;">③</span>
+          <span style="font-size:0.84rem;">Help a creator decide whether to build</span>
+        </div>
+      </div>
+      <button id="startFirstTopicBtn" type="button" class="x-btn-primary" style="margin-top:0.7rem;">Answer my first topic →</button>
+    </section>
+
+    <section id="firstResponseBanner" class="section x-card hidden motion-reveal" style="max-width:960px;margin-left:auto;margin-right:auto;border-color:rgba(22,163,74,0.26); background:rgba(22,163,74,0.08);">
+      <p style="font-size:0.9rem; color:#166534; margin:0;">First response submitted! 🎉 You earned 10 points.</p>
+    </section>
+
     <section class="section x-card motion-reveal" style="max-width:960px;margin-left:auto;margin-right:auto;">
       <div class="flex flex-wrap items-center justify-between gap-3" style="margin-bottom:0.75rem;">
         <div>
@@ -219,16 +254,55 @@
     const repResponsesEl = document.getElementById('repResponses');
     const repCategoriesEl = document.getElementById('repCategories');
     const repStreakEl = document.getElementById('repStreak');
+    const testerWelcomeMessageEl = document.getElementById('testerWelcomeMessage');
+    const testerOnboardingPanelEl = document.getElementById('testerOnboardingPanel');
+    const closeTesterOnboardingBtn = document.getElementById('closeTesterOnboardingBtn');
+    const startFirstTopicBtn = document.getElementById('startFirstTopicBtn');
+    const firstResponseBannerEl = document.getElementById('firstResponseBanner');
+    const pageParams = new URLSearchParams(window.location.search);
+    const welcomeMode = pageParams.get('welcome') === '1';
+    let testerResponsesCount = 0;
+    let currentDailyPicks = [];
 
     if (!session) {
       throw new Error('Authentication required');
     } else {
       testerNameEl.textContent = session.name || '';
       updateUsernameHint(session.username || '');
+      if (welcomeMode && testerWelcomeMessageEl) {
+        testerWelcomeMessageEl.classList.remove('hidden');
+      }
       loadTesterStatus();
       loadDailyPicks();
       loadNotifications();
       loadResponseHistory();
+      renderTesterOnboarding();
+    }
+
+    function isTesterOnboardingDone() {
+      return localStorage.getItem('tester_onboarding_done') === '1';
+    }
+
+    function renderTesterOnboarding() {
+      if (!testerOnboardingPanelEl) return;
+      const shouldShow = welcomeMode || (!isTesterOnboardingDone() && testerResponsesCount === 0);
+      testerOnboardingPanelEl.classList.toggle('hidden', !shouldShow);
+      if (shouldShow) {
+        localStorage.setItem('tester_onboarding_active', '1');
+      }
+    }
+
+    function maybeShowFirstResponseCelebration() {
+      if (!firstResponseBannerEl) return;
+      const wasActive = localStorage.getItem('tester_onboarding_active') === '1';
+      const explicitSubmitFlag = localStorage.getItem('tester_first_response_submitted') === '1';
+      if (!isTesterOnboardingDone() && testerResponsesCount > 0 && (wasActive || explicitSubmitFlag || welcomeMode)) {
+        firstResponseBannerEl.classList.remove('hidden');
+        localStorage.setItem('tester_onboarding_done', '1');
+        localStorage.removeItem('tester_onboarding_active');
+        localStorage.removeItem('tester_first_response_submitted');
+        if (testerOnboardingPanelEl) testerOnboardingPanelEl.classList.add('hidden');
+      }
     }
 
     async function loadTesterStatus() {
@@ -243,11 +317,14 @@
         repAcceptedEl.textContent = String(Number(data.accepted_responses_count || 0));
         repAcceptanceRateEl.textContent = `${Math.round(Number(data.acceptance_rate || 0) * 100)}%`;
         repResponsesEl.textContent = String(Number(data.responses_count || 0));
+        testerResponsesCount = Number(data.responses_count || 0);
         repCategoriesEl.textContent = Array.isArray(data.best_categories) && data.best_categories.length
           ? data.best_categories.join(' · ')
           : '—';
         repStreakEl.textContent = `${streak} day${streak === 1 ? '' : 's'}`;
         updateUsernameHint(data.username || '');
+        renderTesterOnboarding();
+        maybeShowFirstResponseCelebration();
       } catch (_err) {
         // Status is decorative and should not block the dashboard.
       }
@@ -286,6 +363,22 @@
       }
     });
 
+    if (closeTesterOnboardingBtn) {
+      closeTesterOnboardingBtn.addEventListener('click', () => {
+        if (testerOnboardingPanelEl) testerOnboardingPanelEl.classList.add('hidden');
+      });
+    }
+
+    if (startFirstTopicBtn) {
+      startFirstTopicBtn.addEventListener('click', () => {
+        if (currentDailyPicks.length > 0 && currentDailyPicks[0].id) {
+          window.location.href = `answer.html?project_id=${currentDailyPicks[0].id}`;
+          return;
+        }
+        dailyPicksEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    }
+
     async function loadDailyPicks() {
       dailyPicksEl.innerHTML = '';
       dailyPicksEmptyEl.classList.add('hidden');
@@ -298,18 +391,22 @@
         const picks = Array.isArray(data)
           ? data
           : (Array.isArray(data && data.picks) ? data.picks : []);
+        currentDailyPicks = picks;
         if (completedToday) {
           dailyPicksEmptyEl.textContent = 'Come back tomorrow.';
           dailyPicksEmptyEl.classList.remove('hidden');
+          renderTesterOnboarding();
           return;
         }
         if (!picks.length) {
           dailyPicksEmptyEl.textContent = 'No fresh active topics right now.';
           dailyPicksEmptyEl.classList.remove('hidden');
+          renderTesterOnboarding();
           return;
         }
         picks.forEach((project) => dailyPicksEl.appendChild(createDailyPickCard(project)));
         XsoliaApp.initMotion();
+        renderTesterOnboarding();
       } catch (err) {
         dailyPicksErrorEl.textContent = err.message || 'Failed to load daily picks.';
         dailyPicksErrorEl.classList.remove('hidden');
@@ -367,19 +464,26 @@
       }
     }
 
+    function timeAgo(dateStr) {
+      const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
+      if (!Number.isFinite(diff) || diff < 0) return 'just now';
+      if (diff < 60) return 'just now';
+      if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+      if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+      return `${Math.floor(diff / 86400)}d ago`;
+    }
+
     function createNotificationItem(item) {
-      const payload = item.payload || {};
       const row = document.createElement('button');
       row.type = 'button';
       row.className = 'x-card';
       row.style.textAlign = 'left';
       row.style.width = '100%';
       row.style.fontSize = '0.86rem';
-      if (item.type === 'early_access_granted') {
-        row.textContent = `${payload.project_title || 'A project'} granted you early access.`;
-      } else {
-        row.textContent = `${payload.project_title || 'A project'} launched · You gave it ${payload.your_interest || '–'}/5 · Good call.`;
-      }
+      row.innerHTML = `
+        <div>${String(item.text || 'You have a new notification.').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+        <div style="font-size:0.74rem; color:#9ca3af; margin-top:0.18rem;">${timeAgo(item.created_at)}</div>
+      `;
       row.addEventListener('click', async () => {
         await XsoliaApp.apiFetch(`/me/notifications/${item.id}/read`, { method: 'POST', auth: true });
         row.remove();

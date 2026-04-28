@@ -63,6 +63,7 @@ def create_project(
         detail_level=payload.detail_level,
         allow_indexing=payload.allow_indexing,
         source_innovation_id=payload.source_innovation_id,
+        share_token=secrets.token_urlsafe(16),
     )
 
     session.add(project)
@@ -357,7 +358,7 @@ def list_project_top_contributors(
     if not responses:
         return []
 
-    tester_ids = sorted({response.user_id for response in responses})
+    tester_ids = sorted({response.user_id for response in responses if response.user_id is not None})
     tester_rows = session.exec(
         select(User.id, User.name, User.username).where(User.id.in_(tester_ids))
     ).all()
@@ -379,6 +380,8 @@ def list_project_top_contributors(
 
     contributors: list[TopContributorOut] = []
     for response in responses:
+        if response.user_id is None:
+            continue
         tester_profile = tester_map.get(response.user_id)
         if not tester_profile:
             continue
@@ -420,30 +423,68 @@ def get_project(
     return serialize_project(project, question_rows, viewer=current_user)
 
 
+@router.get("/projects/by-token/{share_token}", response_model=ProjectOut)
+def get_project_by_share_token(
+    share_token: str,
+    current_user: Optional[User] = Depends(get_optional_current_user),
+    session: Session = Depends(get_session),
+):
+    cleaned_token = share_token.strip()
+    if not cleaned_token:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    project = session.exec(
+        select(Project).where(Project.share_token == cleaned_token)
+    ).first()
+    if not project or project.status != "active":
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    question_rows = session.exec(
+        select(ProjectQuestion)
+        .where(ProjectQuestion.project_id == project.id)
+        .order_by(ProjectQuestion.position)
+    ).all()
+    return serialize_project(project, question_rows, viewer=current_user)
+
+
 @router.post("/projects/{project_id}/respond")
 def respond_to_project(
     project_id: int,
     payload: ResponseCreate,
-    current_user: User = Depends(get_current_user),
+    share_token: Optional[str] = Query(default=None),
+    current_user: Optional[User] = Depends(get_optional_current_user),
     session: Session = Depends(get_session),
 ):
     project = session.get(Project, project_id)
     if not project or project.status != "active":
         raise HTTPException(status_code=404, detail="Project not found or inactive")
 
-    if not can_answer_project(project, current_user):
-        if project.creator_id == current_user.id:
-            raise HTTPException(status_code=403, detail="Project creators cannot respond to their own project")
-        raise HTTPException(status_code=403, detail="Project is private or tester-only")
+    responder_user_id: Optional[int] = None
+    guest_mode = current_user is None
+    if current_user is None:
+        cleaned_token = (share_token or "").strip()
+        if not cleaned_token:
+            raise HTTPException(status_code=403, detail="Login required or use a share link")
+        token_project_id = session.exec(
+            select(Project.id).where(Project.share_token == cleaned_token)
+        ).first()
+        if token_project_id != project_id:
+            raise HTTPException(status_code=403, detail="Invalid share link")
+    else:
+        if not can_answer_project(project, current_user):
+            if project.creator_id == current_user.id:
+                raise HTTPException(status_code=403, detail="Project creators cannot respond to their own project")
+            raise HTTPException(status_code=403, detail="Project is private or tester-only")
+        responder_user_id = current_user.id
 
-    existing = session.exec(
-        select(Response).where(
-            Response.project_id == project_id,
-            Response.user_id == current_user.id,
-        )
-    ).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="User already responded to this project")
+        existing = session.exec(
+            select(Response).where(
+                Response.project_id == project_id,
+                Response.user_id == current_user.id,
+            )
+        ).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="User already responded to this project")
 
     project_questions = session.exec(
         select(ProjectQuestion)
@@ -459,7 +500,7 @@ def respond_to_project(
 
     response = Response(
         project_id=project_id,
-        user_id=current_user.id,
+        user_id=responder_user_id,
         interest_level=payload.interest_level,
         answers=encode_legacy_list(payload.answers),
         price_min=payload.price_min,
@@ -485,7 +526,7 @@ def respond_to_project(
             )
         )
 
-    if current_user.role == "tester":
+    if current_user and current_user.role == "tester":
         update_tester_streak(current_user)
         session.add(current_user)
 
@@ -493,6 +534,8 @@ def respond_to_project(
         session.commit()
     except IntegrityError:
         session.rollback()
+        if guest_mode:
+            raise HTTPException(status_code=400, detail="Failed to save guest response")
         raise HTTPException(status_code=400, detail="User already responded to this project")
 
     session.refresh(response)
@@ -525,7 +568,7 @@ def list_project_responses(
         session,
         [response.id for response in responses if response.id is not None],
     )
-    responder_ids = sorted({response.user_id for response in responses})
+    responder_ids = sorted({response.user_id for response in responses if response.user_id is not None})
     reputation_map = build_tester_reputation_map(session, responder_ids)
     responder_rows = session.exec(
         select(User.id, User.name).where(User.id.in_(responder_ids))
@@ -536,8 +579,8 @@ def list_project_responses(
         serialize_response(
             response,
             answer_map.get(response.id, []),
-            responder_name=responder_name_map.get(response.user_id),
-            responder_reputation=reputation_map.get(response.user_id),
+            responder_name=responder_name_map.get(response.user_id) if response.user_id is not None else None,
+            responder_reputation=reputation_map.get(response.user_id) if response.user_id is not None else None,
         )
         for response in responses
     ]
@@ -574,6 +617,20 @@ def accept_response(
     responder = session.get(User, response.user_id)
     if responder:
         responder.points += 10
+        session.add(
+            Notification(
+                user_id=response.user_id,
+                type="response_accepted",
+                payload_json=json.dumps(
+                    {
+                        "project_id": project.id,
+                        "project_title": project.title,
+                        "response_id": response.id,
+                    },
+                    ensure_ascii=False,
+                ),
+            )
+        )
     current_user.points += 2
 
     session.add(response)
@@ -596,6 +653,9 @@ def like_response(
     response = session.get(Response, response_id)
     if not response:
         raise HTTPException(status_code=404, detail="Response not found")
+    project = session.get(Project, response.project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
     if response.user_id == current_user.id:
         raise HTTPException(status_code=403, detail="Users cannot like their own response")
 
@@ -618,6 +678,21 @@ def like_response(
 
     session.add(response_like)
     session.add(response)
+    if response.user_id and response.user_id != current_user.id:
+        session.add(
+            Notification(
+                user_id=response.user_id,
+                type="response_liked",
+                payload_json=json.dumps(
+                    {
+                        "project_id": project.id,
+                        "project_title": project.title,
+                        "response_id": response.id,
+                    },
+                    ensure_ascii=False,
+                ),
+            )
+        )
     try:
         session.commit()
     except IntegrityError:

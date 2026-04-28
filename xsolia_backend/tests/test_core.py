@@ -1609,3 +1609,161 @@ def test_response_payload_includes_responder_reputation():
         assert rows[0]["responder_name"] == "Tester"
     finally:
         main.app.dependency_overrides = {}
+
+
+def test_share_link_guest_response_and_auto_register_claim():
+    client = _make_client()
+    try:
+        creator = {
+            "email": "share-link-creator@example.com",
+            "name": "Creator",
+            "password": "pass1234",
+            "role": "creator",
+            "subscription": "creator_basic",
+        }
+        _register(client, creator)
+        creator_login = _login(client, creator["email"], creator["password"])
+
+        created = client.post(
+            "/projects",
+            json={
+                "title": "Shareable topic",
+                "description": "A valid description for share link guest response flow testing.",
+                "target_audience": "Busy operators",
+                "questions": ["Would you try this?"],
+                "budget": 50,
+                "main_category": "digital",
+                "subcategory": "saas",
+            },
+            headers=_auth_headers(creator_login["access_token"]),
+        )
+        assert created.status_code == 200
+        project = created.json()
+        project_id = project["id"]
+        share_token = project["share_token"]
+        assert share_token
+        assert project["share_url"].endswith(f"/answer.html?token={share_token}")
+
+        by_token = client.get(f"/projects/by-token/{share_token}")
+        assert by_token.status_code == 200
+        assert by_token.json()["id"] == project_id
+
+        blocked_guest = client.post(
+            f"/projects/{project_id}/respond",
+            json={"interest_level": 4, "answers": ["Looks interesting"]},
+        )
+        assert blocked_guest.status_code == 403
+
+        guest_response = client.post(
+            f"/projects/{project_id}/respond?share_token={share_token}",
+            json={"interest_level": 4, "answers": ["Looks interesting"]},
+        )
+        assert guest_response.status_code == 200
+        response_id = guest_response.json()["response_id"]
+
+        convert = client.post(
+            "/register/from-guest",
+            json={
+                "name": "Claimed Guest",
+                "email": "claimed-guest@example.com",
+                "password": "pass1234",
+                "guest_response_ids": [response_id],
+            },
+        )
+        assert convert.status_code == 200
+        converted_login = convert.json()
+        assert converted_login["access_token"]
+        assert converted_login["role"] == "tester"
+
+        me = client.get("/me", headers=_auth_headers(converted_login["access_token"]))
+        assert me.status_code == 200
+        me_payload = me.json()
+        assert me_payload["points"] >= 10
+        assert me_payload["responses_count"] >= 1
+    finally:
+        main.app.dependency_overrides = {}
+
+
+def test_response_notifications_include_text_field():
+    client = _make_client()
+    try:
+        creator = {
+            "email": "notif-creator@example.com",
+            "name": "Creator",
+            "password": "pass1234",
+            "role": "creator",
+            "subscription": "creator_plus",
+        }
+        tester_a = {
+            "email": "notif-tester-a@example.com",
+            "name": "Tester A",
+            "password": "pass1234",
+            "role": "tester",
+            "subscription": "free",
+        }
+        tester_b = {
+            "email": "notif-tester-b@example.com",
+            "name": "Tester B",
+            "password": "pass1234",
+            "role": "tester",
+            "subscription": "free",
+        }
+        _register(client, creator)
+        _register(client, tester_a)
+        _register(client, tester_b)
+        creator_login = _login(client, creator["email"], creator["password"])
+        tester_a_login = _login(client, tester_a["email"], tester_a["password"])
+        tester_b_login = _login(client, tester_b["email"], tester_b["password"])
+
+        created = client.post(
+            "/projects",
+            json={
+                "title": "Notification topic",
+                "description": "A valid description for notification text payload checks.",
+                "target_audience": "Builders",
+                "questions": ["Would you use this?"],
+                "budget": 60,
+                "main_category": "digital",
+                "subcategory": "saas",
+            },
+            headers=_auth_headers(creator_login["access_token"]),
+        )
+        assert created.status_code == 200
+        project_id = created.json()["id"]
+
+        responded = client.post(
+            f"/projects/{project_id}/respond",
+            json={"interest_level": 5, "answers": ["Strong interest"]},
+            headers=_auth_headers(tester_a_login["access_token"]),
+        )
+        assert responded.status_code == 200
+
+        listed = client.get(
+            f"/projects/{project_id}/responses",
+            headers=_auth_headers(creator_login["access_token"]),
+        )
+        response_id = listed.json()[0]["id"]
+
+        like = client.post(
+            f"/responses/{response_id}/like",
+            headers=_auth_headers(tester_b_login["access_token"]),
+        )
+        assert like.status_code == 200
+
+        accept = client.post(
+            f"/responses/{response_id}/accept",
+            headers=_auth_headers(creator_login["access_token"]),
+        )
+        assert accept.status_code == 200
+
+        notifications = client.get(
+            "/me/notifications?unread_only=false&limit=10",
+            headers=_auth_headers(tester_a_login["access_token"]),
+        )
+        assert notifications.status_code == 200
+        rows = notifications.json()
+        assert len(rows) >= 2
+        assert all(isinstance(item.get("text"), str) and item["text"] for item in rows)
+        assert any("accepted" in item["text"].lower() for item in rows)
+    finally:
+        main.app.dependency_overrides = {}

@@ -120,6 +120,11 @@ AI_REQUEST_TIMEOUT_SECONDS = int(
     or os.getenv("KROTKA_AI_REQUEST_TIMEOUT_SECONDS")
     or "45"
 )
+BASE_URL = (
+    os.getenv("XSOLIA_BASE_URL")
+    or os.getenv("KROTKA_BASE_URL")
+    or "https://xsolia.com"
+).rstrip("/")
 ALLOWED_ORIGINS_RAW = (
     os.getenv("XSOLIA_ALLOWED_ORIGINS")
     or os.getenv("KROTKA_ALLOWED_ORIGINS")
@@ -340,6 +345,7 @@ class Project(SQLModel, table=True):
     detail_level: str = "concept_summary"
     allow_indexing: bool = False
     source_innovation_id: Optional[int] = Field(default=None, index=True)
+    share_token: Optional[str] = Field(default=None, index=True)
 
 
 class ProjectQuestion(SQLModel, table=True):
@@ -515,6 +521,8 @@ class ProjectOut(SQLModel):
     detail_level: str = "concept_summary"
     allow_indexing: bool = False
     source_innovation_id: Optional[int] = None
+    share_token: Optional[str] = None
+    share_url: Optional[str] = None
     responses_count: int = 0
     avg_interest: Optional[float] = None
 
@@ -535,7 +543,7 @@ class Response(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     project_id: int = Field(index=True)
-    user_id: int = Field(index=True)
+    user_id: Optional[int] = Field(default=None, foreign_key="user.id", index=True)
     interest_level: int
     answers: str
     price_min: Optional[int] = None
@@ -616,7 +624,7 @@ class ResponseOut(SQLModel):
     id: int
     project_id: int
     project_title: Optional[str] = None
-    user_id: int
+    user_id: Optional[int] = None
     interest_level: int
     answers: list[str]
     price_min: Optional[int] = None
@@ -699,6 +707,7 @@ class NotificationOut(SQLModel):
     id: int
     type: str
     payload: dict[str, Any]
+    text: str = ""
     read: bool
     created_at: datetime
 
@@ -962,6 +971,10 @@ def ensure_project_columns() -> None:
                 connection.execute(
                     text('ALTER TABLE "project" ADD COLUMN reward_type VARCHAR NOT NULL DEFAULT \'points\'')
                 )
+            if "share_token" not in existing_columns:
+                connection.execute(
+                    text('ALTER TABLE "project" ADD COLUMN share_token VARCHAR')
+                )
             connection.execute(text('UPDATE "project" SET image_urls = \'[]\' WHERE image_urls IS NULL OR trim(image_urls) = \'\''))
             connection.execute(text('UPDATE "project" SET visibility = \'public\' WHERE visibility IS NULL OR trim(visibility) = \'\''))
             connection.execute(text('UPDATE "project" SET visibility = \'unlisted\' WHERE visibility = \'private_link\''))
@@ -969,6 +982,7 @@ def ensure_project_columns() -> None:
             connection.execute(text("UPDATE \"project\" SET allow_indexing = 0 WHERE allow_indexing IS NULL"))
             connection.execute(text("UPDATE \"project\" SET reward_type = 'points' WHERE reward_type IS NULL OR trim(reward_type) = ''"))
             connection.execute(text('CREATE INDEX IF NOT EXISTS ix_project_source_innovation_id ON "project" (source_innovation_id)'))
+            connection.execute(text('CREATE INDEX IF NOT EXISTS ix_project_share_token ON "project" (share_token)'))
             return
 
         if dialect == "postgresql":
@@ -978,6 +992,7 @@ def ensure_project_columns() -> None:
             connection.execute(text('ALTER TABLE "project" ADD COLUMN IF NOT EXISTS allow_indexing BOOLEAN NOT NULL DEFAULT FALSE'))
             connection.execute(text('ALTER TABLE "project" ADD COLUMN IF NOT EXISTS source_innovation_id INTEGER'))
             connection.execute(text('ALTER TABLE "project" ADD COLUMN IF NOT EXISTS reward_type VARCHAR NOT NULL DEFAULT \'points\''))
+            connection.execute(text('ALTER TABLE "project" ADD COLUMN IF NOT EXISTS share_token VARCHAR'))
             connection.execute(text("UPDATE \"project\" SET image_urls = '[]' WHERE image_urls IS NULL OR btrim(image_urls) = ''"))
             connection.execute(text("UPDATE \"project\" SET visibility = 'public' WHERE visibility IS NULL OR btrim(visibility) = ''"))
             connection.execute(text("UPDATE \"project\" SET visibility = 'unlisted' WHERE visibility = 'private_link'"))
@@ -985,6 +1000,7 @@ def ensure_project_columns() -> None:
             connection.execute(text("UPDATE \"project\" SET allow_indexing = FALSE WHERE allow_indexing IS NULL"))
             connection.execute(text("UPDATE \"project\" SET reward_type = 'points' WHERE reward_type IS NULL OR btrim(reward_type) = ''"))
             connection.execute(text('CREATE INDEX IF NOT EXISTS ix_project_source_innovation_id ON "project" (source_innovation_id)'))
+            connection.execute(text('CREATE INDEX IF NOT EXISTS ix_project_share_token ON "project" (share_token)'))
 
 
 def ensure_response_columns() -> None:
@@ -1002,6 +1018,8 @@ def ensure_response_columns() -> None:
             connection.execute(
                 text('UPDATE "response" SET contribution_score = 0 WHERE contribution_score IS NULL')
             )
+            # SQLite cannot ALTER COLUMN to drop NOT NULL. Existing deployments that still
+            # have response.user_id as NOT NULL require table recreation to support guest responses.
             return
 
         if dialect == "postgresql":
@@ -1010,6 +1028,9 @@ def ensure_response_columns() -> None:
             )
             connection.execute(
                 text('UPDATE "response" SET contribution_score = 0 WHERE contribution_score IS NULL')
+            )
+            connection.execute(
+                text('ALTER TABLE "response" ALTER COLUMN user_id DROP NOT NULL')
             )
 
 
@@ -1345,6 +1366,8 @@ def serialize_project(
             questions = decode_legacy_list(project.questions)
 
     image_urls = decode_legacy_list(project.image_urls or "[]")
+    share_token = (project.share_token or "").strip() or None
+    share_url = f"{BASE_URL}/answer.html?token={share_token}" if share_token else None
 
     return ProjectOut(
         id=project.id,
@@ -1364,6 +1387,8 @@ def serialize_project(
         detail_level=project.detail_level or "concept_summary",
         allow_indexing=bool(project.allow_indexing),
         source_innovation_id=project.source_innovation_id,
+        share_token=share_token,
+        share_url=share_url,
     )
 
 
@@ -1446,9 +1471,30 @@ def serialize_notification(notification: Notification) -> NotificationOut:
         id=notification.id,
         type=notification.type,
         payload=payload,
+        text=format_notification_text(notification),
         read=notification.read,
         created_at=notification.created_at,
     )
+
+
+def format_notification_text(notification: Notification) -> str:
+    payload: dict[str, Any]
+    try:
+        parsed = json.loads(notification.payload_json)
+    except Exception:
+        parsed = {}
+    payload = parsed if isinstance(parsed, dict) else {}
+    title = payload.get("project_title", "a project")
+    if notification.type == "response_accepted":
+        return f'Your response to "{title}" was accepted by the creator.'
+    if notification.type == "response_liked":
+        return f'Someone liked your response to "{title}".'
+    if notification.type == "prediction_confirmed":
+        interest = payload.get("your_interest", "?")
+        return f'"{title}" launched — you gave it {interest}/5. Good call.'
+    if notification.type == "early_access_granted":
+        return f'You\'ve been granted early access to "{title}".'
+    return "You have a new notification."
 
 
 def serialize_early_access_grant(grant: EarlyAccessGrant, project_title: str) -> EarlyAccessGrantOut:
@@ -1594,6 +1640,8 @@ def create_launch_notifications(session: Session, project: Project) -> None:
 
     seen_user_ids: set[int] = set()
     for user_id, interest_level in response_rows:
+        if user_id is None:
+            continue
         if user_id in seen_user_ids:
             continue
         seen_user_ids.add(user_id)

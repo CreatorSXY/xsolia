@@ -106,6 +106,9 @@
         <p style="font-size:0.9rem; color:#6b7280; margin-bottom:1rem;">
           Describe your idea and ask a handful of focused questions to understand your market. New creators can publish one free topic before upgrading.
         </p>
+        <p id="onboardingStepIndicator" class="hidden" style="font-size:0.82rem; color:#9ca3af; margin-bottom:0.55rem;">
+          Step 1 of 3 — Describe your idea
+        </p>
         <p id="sourceHint" class="hidden" style="font-size:0.82rem; color:#6b7280; margin-bottom:1rem;"></p>
 
 	        <form id="projectForm" class="space-y-4" novalidate>
@@ -333,6 +336,12 @@
       alert('You need a creator account to post topics.');
       window.location.href = 'creator-dashboard.html';
     }
+    const pageParams = new URLSearchParams(window.location.search);
+    const onboardingMode = pageParams.get('onboarding') === '1';
+    const onboardingStepIndicator = document.getElementById('onboardingStepIndicator');
+    if (onboardingMode && onboardingStepIndicator) {
+      onboardingStepIndicator.classList.remove('hidden');
+    }
 
     // Category → subcategory mapping
     const CATEGORY_MAP = {
@@ -408,6 +417,20 @@
           subcategorySelect.appendChild(opt);
         });
       });
+    }
+
+    if (onboardingMode && categorySelect) {
+      const ideaType = localStorage.getItem('creator_onboarding_idea_type') || '';
+      const categoryByIdeaType = {
+        product: 'digital',
+        content: 'education',
+        other: 'other',
+      };
+      const prefillCategory = categoryByIdeaType[ideaType] || '';
+      if (prefillCategory) {
+        categorySelect.value = prefillCategory;
+        categorySelect.dispatchEvent(new Event('change'));
+      }
     }
 
     const firstDeleteBtn = document.querySelector('.question-row .delete-question-btn');
@@ -845,12 +868,16 @@
 		        }
 
 	        clearProjectFormErrors();
-	        successEl.textContent = 'Topic published successfully! Redirecting to your dashboard...';
-	        successEl.style.display = 'block';
-	        publishSucceeded = true;
-	        setTimeout(() => {
-	          window.location.href = 'creator-dashboard.html';
-	        }, 3000);
+        successEl.textContent = 'Topic published successfully! Redirecting to your dashboard...';
+        successEl.style.display = 'block';
+        publishSucceeded = true;
+        setTimeout(() => {
+          if (onboardingMode) {
+            window.location.href = 'creator-dashboard.html?first_project=1';
+            return;
+          }
+          window.location.href = 'creator-dashboard.html';
+        }, 3000);
 	      } catch (err) {
 	        errorEl.textContent = err && err.message
 	          ? `Network error: ${err.message}`

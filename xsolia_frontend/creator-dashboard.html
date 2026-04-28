@@ -130,6 +130,28 @@
           Your public profile
         </button>
 
+        <div style="position:relative;">
+          <button id="creatorNotifBtn"
+                  type="button"
+                  class="x-btn-secondary text-xs"
+                  style="position:relative; padding-inline:0.7rem; padding-block:0.25rem;">
+            🔔
+            <span id="creatorNotifDot"
+                  class="hidden"
+                  style="position:absolute; right:0.28rem; top:0.22rem; width:8px; height:8px; border-radius:999px; background:#bd4228;"></span>
+          </button>
+          <div id="creatorNotifPanel"
+               class="hidden x-card"
+               style="position:absolute; right:0; top:2.2rem; width:320px; z-index:100; max-height:400px; overflow-y:auto;">
+            <div id="creatorNotifList"></div>
+            <p id="creatorNotifEmpty"
+               class="hidden"
+               style="font-size:0.85rem; padding:1rem; color:#6b7280;">
+              No notifications yet.
+            </p>
+          </div>
+        </div>
+
         <button id="logoutBtn"
                 class="x-btn-secondary text-xs"
                 style="padding-inline:0.7rem; padding-block:0.25rem;">
@@ -155,6 +177,48 @@
       <div class="x-card">
         <p style="font-size:0.75rem; color:#6b7280; margin-bottom:0.25rem;">Projects needing decision</p>
         <p id="projectsNeedingDecision" class="text-2xl font-semibold">0</p>
+      </div>
+    </section>
+
+    <section id="firstProjectBanner" class="section x-card hidden motion-reveal" style="border-color:rgba(22,163,74,0.26); background:rgba(22,163,74,0.08);">
+      <p style="font-size:0.95rem; color:#166534; margin:0;">
+        Your first topic is live! Share the link to get your first responses.
+      </p>
+      <button id="firstProjectShareBtn" type="button" class="x-btn-secondary" style="margin-top:0.55rem; font-size:0.8rem;">
+        Copy share link
+      </button>
+      <p id="firstProjectShareStatus" style="font-size:0.78rem; color:#166534; margin-top:0.35rem;"></p>
+    </section>
+
+    <section id="creatorOnboarding" class="section x-card hidden motion-reveal">
+      <div id="onboardStep1">
+        <p class="eyebrow">Getting started</p>
+        <h2 style="font-size:1.18rem; font-weight:700; margin-bottom:0.35rem;">Validate before you build</h2>
+        <p style="font-size:0.9rem; color:#6b7280; max-width:700px; margin-bottom:0.7rem;">
+          Post your idea in 2 minutes. Real testers will tell you if it&apos;s worth building and what they&apos;d pay.
+        </p>
+        <button id="onboardToStep2" type="button" class="x-btn-primary">Start my first validation →</button>
+      </div>
+      <div id="onboardStep2" class="hidden">
+        <p class="eyebrow">Step 2</p>
+        <h2 style="font-size:1.18rem; font-weight:700; margin-bottom:0.45rem;">What kind of idea do you have?</h2>
+        <div id="ideaTypeCards" class="grid md:grid-cols-3 gap-3" style="margin-bottom:0.7rem;">
+          <button type="button" data-idea-type="product" class="x-card" style="text-align:left;">A product or app</button>
+          <button type="button" data-idea-type="content" class="x-card" style="text-align:left;">A content or service idea</button>
+          <button type="button" data-idea-type="other" class="x-card" style="text-align:left;">Something else</button>
+        </div>
+        <button id="onboardToStep3" type="button" class="x-btn-primary">Continue →</button>
+      </div>
+      <div id="onboardStep3" class="hidden">
+        <p class="eyebrow">Step 3</p>
+        <h2 style="font-size:1.18rem; font-weight:700; margin-bottom:0.35rem;">You&apos;re ready</h2>
+        <p style="font-size:0.9rem; color:#6b7280; margin-bottom:0.7rem;">
+          Click below to post your first validation topic. It takes about 2 minutes.
+        </p>
+        <div class="flex flex-wrap items-center gap-2">
+          <button id="onboardPostTopicBtn" type="button" class="x-btn-primary">Post my first topic</button>
+          <button id="onboardExampleBtn" type="button" class="x-btn-secondary">Show me an example first</button>
+        </div>
       </div>
     </section>
 
@@ -239,7 +303,29 @@
     const planHint = document.getElementById("planHint");
     const publicProfileBtn = document.getElementById("publicProfileBtn");
     const logoutBtn = document.getElementById("logoutBtn");
+    const creatorNotifBtn = document.getElementById("creatorNotifBtn");
+    const creatorNotifDot = document.getElementById("creatorNotifDot");
+    const creatorNotifPanel = document.getElementById("creatorNotifPanel");
+    const creatorNotifList = document.getElementById("creatorNotifList");
+    const creatorNotifEmpty = document.getElementById("creatorNotifEmpty");
+    const creatorOnboardingEl = document.getElementById("creatorOnboarding");
+    const onboardStep1El = document.getElementById("onboardStep1");
+    const onboardStep2El = document.getElementById("onboardStep2");
+    const onboardStep3El = document.getElementById("onboardStep3");
+    const onboardToStep2Btn = document.getElementById("onboardToStep2");
+    const onboardToStep3Btn = document.getElementById("onboardToStep3");
+    const onboardPostTopicBtn = document.getElementById("onboardPostTopicBtn");
+    const onboardExampleBtn = document.getElementById("onboardExampleBtn");
+    const ideaTypeCardsWrap = document.getElementById("ideaTypeCards");
+    const firstProjectBanner = document.getElementById("firstProjectBanner");
+    const firstProjectShareBtn = document.getElementById("firstProjectShareBtn");
+    const firstProjectShareStatus = document.getElementById("firstProjectShareStatus");
+    const queryParams = new URLSearchParams(window.location.search);
+    const fromFirstProject = queryParams.get("first_project") === "1";
     let currentUsername = session.username || "";
+    let creatorNotifications = [];
+    let selectedOnboardingIdeaType = localStorage.getItem("creator_onboarding_idea_type") || "";
+    let latestTopicList = [];
 
     async function showUsernameSetupModal() {
       const input = window.prompt("Choose a public username: 3-30 letters, numbers, or underscores.");
@@ -288,6 +374,57 @@
       }
     });
 
+    if (onboardToStep2Btn) {
+      onboardToStep2Btn.addEventListener("click", () => setOnboardingStep(2));
+    }
+    if (ideaTypeCardsWrap) {
+      ideaTypeCardsWrap.addEventListener("click", (event) => {
+        const target = event.target.closest("[data-idea-type]");
+        if (!target) return;
+        selectedOnboardingIdeaType = target.getAttribute("data-idea-type") || "";
+        localStorage.setItem("creator_onboarding_idea_type", selectedOnboardingIdeaType);
+        updateIdeaTypeSelection();
+      });
+    }
+    if (onboardToStep3Btn) {
+      onboardToStep3Btn.addEventListener("click", () => {
+        if (!selectedOnboardingIdeaType) {
+          window.alert("Pick one option before continuing.");
+          return;
+        }
+        setOnboardingStep(3);
+      });
+    }
+    if (onboardPostTopicBtn) {
+      onboardPostTopicBtn.addEventListener("click", () => {
+        window.location.href = "create.html?onboarding=1";
+      });
+    }
+    if (onboardExampleBtn) {
+      onboardExampleBtn.addEventListener("click", () => {
+        window.location.href = "explore.html";
+      });
+    }
+    updateIdeaTypeSelection();
+
+    if (creatorNotifBtn && creatorNotifPanel) {
+      creatorNotifBtn.addEventListener("click", async (event) => {
+        event.stopPropagation();
+        const willOpen = creatorNotifPanel.classList.contains("hidden");
+        creatorNotifPanel.classList.toggle("hidden");
+        if (willOpen) {
+          await markVisibleCreatorNotificationsAsRead();
+        }
+      });
+
+      document.addEventListener("click", (event) => {
+        if (creatorNotifPanel.classList.contains("hidden")) return;
+        if (!creatorNotifPanel.contains(event.target) && !creatorNotifBtn.contains(event.target)) {
+          creatorNotifPanel.classList.add("hidden");
+        }
+      });
+    }
+
     async function refreshCurrentUser() {
       try {
         const { response, data } = await XsoliaApp.apiFetch("/me", { auth: true });
@@ -301,6 +438,136 @@
         }
       } catch (_err) {
         // Non-blocking: profile setup can still happen from the button prompt.
+      }
+    }
+
+    function timeAgo(dateStr) {
+      const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
+      if (!Number.isFinite(diff) || diff < 0) return "just now";
+      if (diff < 60) return "just now";
+      if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+      if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+      return `${Math.floor(diff / 86400)}d ago`;
+    }
+
+    function escapeHtml(value) {
+      return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function setOnboardingStep(step) {
+      if (!creatorOnboardingEl) return;
+      creatorOnboardingEl.classList.remove("hidden");
+      onboardStep1El.classList.toggle("hidden", step !== 1);
+      onboardStep2El.classList.toggle("hidden", step !== 2);
+      onboardStep3El.classList.toggle("hidden", step !== 3);
+    }
+
+    function updateIdeaTypeSelection() {
+      if (!ideaTypeCardsWrap) return;
+      const cards = ideaTypeCardsWrap.querySelectorAll("[data-idea-type]");
+      cards.forEach((card) => {
+        const type = card.getAttribute("data-idea-type");
+        const selected = type === selectedOnboardingIdeaType;
+        card.style.borderColor = selected ? "rgba(215,98,53,0.55)" : "rgba(42,39,34,0.16)";
+        card.style.background = selected ? "rgba(215,98,53,0.1)" : "rgba(255,255,255,0.68)";
+      });
+    }
+
+    async function copyProjectShareLink(projectId, statusNode = null) {
+      const setStatus = (message) => {
+        if (statusNode) statusNode.textContent = message;
+      };
+      try {
+        const { response, data } = await XsoliaApp.apiFetch(`/projects/${projectId}`, {
+          auth: true,
+        });
+        if (!response.ok) {
+          throw new Error(XsoliaApp.formatApiError(data, "Failed to load share link."));
+        }
+        const shareUrl = String((data && data.share_url) || "").trim();
+        if (!shareUrl) {
+          throw new Error("Share link unavailable for this topic.");
+        }
+        await navigator.clipboard.writeText(shareUrl);
+        setStatus("Link copied!");
+      } catch (err) {
+        setStatus(err.message || "Failed to copy link.");
+      }
+    }
+
+    function renderCreatorNotifications() {
+      if (!creatorNotifList || !creatorNotifEmpty || !creatorNotifDot) return;
+      creatorNotifList.innerHTML = "";
+      const hasUnread = creatorNotifications.some((item) => !item.read);
+      creatorNotifDot.classList.toggle("hidden", !hasUnread);
+      if (!creatorNotifications.length) {
+        creatorNotifEmpty.classList.remove("hidden");
+        return;
+      }
+      creatorNotifEmpty.classList.add("hidden");
+
+      creatorNotifications.forEach((item) => {
+        const row = document.createElement("button");
+        row.type = "button";
+        row.className = "x-card";
+        row.style.textAlign = "left";
+        row.style.width = "100%";
+        row.style.fontSize = "0.84rem";
+        row.style.marginBottom = "0.45rem";
+        row.style.borderColor = item.read ? "rgba(42,39,34,0.14)" : "rgba(189,66,40,0.24)";
+        row.innerHTML = `
+          <div style="color:#2a2722;">${escapeHtml(item.text || "You have a new notification.")}</div>
+          <div style="font-size:0.74rem; color:#9ca3af; margin-top:0.2rem;">${timeAgo(item.created_at)}</div>
+        `;
+        row.addEventListener("click", async () => {
+          if (item.read) return;
+          await markCreatorNotificationRead(item.id);
+        });
+        creatorNotifList.appendChild(row);
+      });
+    }
+
+    async function loadCreatorNotifications() {
+      try {
+        const { response, data } = await XsoliaApp.apiFetch("/me/notifications?unread_only=false&limit=10&offset=0", {
+          auth: true,
+        });
+        if (!response.ok) return;
+        creatorNotifications = Array.isArray(data) ? data : [];
+        renderCreatorNotifications();
+      } catch (_err) {
+        // Non-blocking.
+      }
+    }
+
+    async function markCreatorNotificationRead(notificationId) {
+      try {
+        const { response, data } = await XsoliaApp.apiFetch(`/me/notifications/${notificationId}/read`, {
+          method: "POST",
+          auth: true,
+        });
+        if (!response.ok) return;
+        const updated = data && typeof data === "object" ? data : null;
+        creatorNotifications = creatorNotifications.map((item) => (
+          item.id === notificationId
+            ? { ...item, read: true, ...(updated || {}) }
+            : item
+        ));
+        renderCreatorNotifications();
+      } catch (_err) {
+        // Non-blocking.
+      }
+    }
+
+    async function markVisibleCreatorNotificationsAsRead() {
+      const unread = creatorNotifications.filter((item) => !item.read);
+      for (const item of unread) {
+        await markCreatorNotificationRead(item.id);
       }
     }
 
@@ -443,6 +710,19 @@
 
         const summary = data && data.summary ? data.summary : {};
         const allProjects = Array.isArray(data && data.projects) ? data.projects : [];
+        latestTopicList = allProjects.slice();
+        const onboardingDone = localStorage.getItem("creator_onboarding_done") === "1";
+        const onboardingNoProjects = allProjects.length === 0 && !onboardingDone;
+        if (allProjects.length === 0 && !onboardingDone) {
+          emptyHint.classList.add("hidden");
+          if (creatorOnboardingEl) {
+            setOnboardingStep(1);
+            creatorOnboardingEl.classList.remove("hidden");
+          }
+        } else if (creatorOnboardingEl) {
+          creatorOnboardingEl.classList.add("hidden");
+        }
+
         const selectedStatus = statusFilter.value || "active";
         const projects = allProjects.filter((item) => {
           if (!selectedStatus) return true;
@@ -455,10 +735,40 @@
         avgInterestAllEl.textContent = avgInterestOverall > 0 ? avgInterestOverall.toFixed(1) : "–";
         projectsNeedingDecisionEl.textContent = String(Number(summary.projects_needing_decision || 0));
 
+        if (onboardingNoProjects) {
+          return;
+        }
+
         if (projects.length === 0) {
           emptyHint.classList.remove("hidden");
           emptyHint.textContent = `No ${selectedStatus} topics in this view.`;
           return;
+        }
+
+        if (fromFirstProject && allProjects.length > 0 && firstProjectBanner) {
+          firstProjectBanner.classList.remove("hidden");
+          localStorage.setItem("creator_onboarding_done", "1");
+          const newest = allProjects[0];
+          if (newest && newest.id) {
+            const { response: projectResp, data: projectData } = await XsoliaApp.apiFetch(`/projects/${newest.id}`, {
+              auth: true,
+            });
+            if (projectResp.ok) {
+              const shareUrl = String((projectData && projectData.share_url) || "").trim();
+              if (shareUrl && firstProjectShareStatus) {
+                firstProjectShareStatus.textContent = shareUrl;
+              }
+            }
+          }
+          if (firstProjectShareBtn) {
+            firstProjectShareBtn.onclick = () => {
+              const newest = allProjects[0];
+              if (!newest || !newest.id) return;
+              copyProjectShareLink(newest.id, firstProjectShareStatus);
+            };
+          }
+        } else if (firstProjectBanner) {
+          firstProjectBanner.classList.add("hidden");
         }
 
         projects.forEach((topic, idx) => {
@@ -663,8 +973,28 @@
           viewReportBtn.style.paddingBlock = "0.25rem";
           viewReportBtn.textContent = "View report";
 
+          const shareLinkBtn = document.createElement("button");
+          shareLinkBtn.type = "button";
+          shareLinkBtn.className = "x-btn-secondary";
+          shareLinkBtn.style.fontSize = "0.8rem";
+          shareLinkBtn.style.paddingInline = "0.8rem";
+          shareLinkBtn.style.paddingBlock = "0.25rem";
+          shareLinkBtn.textContent = "Share link";
+          shareLinkBtn.addEventListener("click", async () => {
+            const originalText = shareLinkBtn.textContent;
+            shareLinkBtn.disabled = true;
+            shareLinkBtn.textContent = "Copying...";
+            await copyProjectShareLink(topic.id);
+            shareLinkBtn.textContent = "Link copied!";
+            setTimeout(() => {
+              shareLinkBtn.disabled = false;
+              shareLinkBtn.textContent = originalText;
+            }, 1000);
+          });
+
           btnRow.appendChild(viewResponsesBtn);
           btnRow.appendChild(viewReportBtn);
+          btnRow.appendChild(shareLinkBtn);
 
           if ((topic.status || "active") === "active") {
             const closeBtn = document.createElement("button");
@@ -747,6 +1077,7 @@
 
     statusFilter.addEventListener("change", loadCreatorTopics);
     refreshCurrentUser();
+    loadCreatorNotifications();
     loadCreatorTopics();
   </script>
 </body>

@@ -106,6 +106,9 @@
           <h1 id="projTitle" style="font-size:1.4rem; font-weight:600; margin-bottom:0.25rem;">Loading...</h1>
           <p id="projDesc" style="font-size:0.9rem; color:#4b5563; margin-bottom:0.25rem;"></p>
           <p id="projMeta" style="font-size:0.8rem; color:#6b7280;"></p>
+          <div id="guestBanner" class="hidden" style="margin-top:0.55rem; padding:0.55rem 0.7rem; border-radius:10px; border:1px solid rgba(29,78,216,0.25); background:rgba(37,99,235,0.08); color:#1d4ed8; font-size:0.82rem;">
+            You&apos;re answering as a guest. Create a free account after submitting to track your contributions.
+          </div>
           <div id="rewardBanner" class="hidden" style="margin-top:0.55rem; padding:0.55rem 0.7rem; border-radius:10px; font-size:0.82rem;"></div>
           <div id="projImages" style="display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:0.5rem; margin-top:0.7rem;"></div>
         </div>
@@ -170,6 +173,31 @@
 
         <p id="error" style="font-size:0.85rem; color:#f97373; margin-top:0.75rem; display:none;"></p>
         <p id="success" style="font-size:0.85rem; color:#16a34a; margin-top:0.75rem; display:none;"></p>
+        <div id="guestConvertPanel" class="hidden" style="margin-top:0.9rem; border:1px solid rgba(42,39,34,0.14); border-radius:12px; padding:0.8rem;">
+          <h3 style="font-size:1rem; font-weight:700; margin-bottom:0.2rem;">Your feedback was submitted!</h3>
+          <p style="font-size:0.82rem; color:#6b7280; margin-bottom:0.6rem;">
+            Create a free account to track your contributions and compete for early access.
+          </p>
+          <form id="guestConvertForm" class="space-y-3">
+            <div>
+              <label style="font-size:0.8rem; color:#6b7280;">Name</label>
+              <input id="guestName" type="text" class="x-input" />
+            </div>
+            <div>
+              <label style="font-size:0.8rem; color:#6b7280;">Email</label>
+              <input id="guestEmail" type="email" class="x-input" />
+            </div>
+            <div>
+              <label style="font-size:0.8rem; color:#6b7280;">Password</label>
+              <input id="guestPassword" type="password" class="x-input" />
+            </div>
+            <button type="submit" class="x-btn-primary" style="width:100%; justify-content:center;">Create account &amp; save my response</button>
+          </form>
+          <button id="skipGuestConvertBtn" type="button" class="x-btn-secondary" style="margin-top:0.55rem; width:100%; justify-content:center;">
+            Skip — continue as guest
+          </button>
+          <p id="guestConvertError" style="font-size:0.82rem; color:#f97373; margin-top:0.55rem; display:none;"></p>
+        </div>
       </div>
     </section>
   </main>
@@ -183,13 +211,18 @@
   <script src="js/nav.js"></script>
   <script>
     const session = XsoliaApp.getSession();
-
-    // Get project ID
     const params = new URLSearchParams(window.location.search);
-    const projectId = params.get('project_id');
+    const shareToken = (params.get('token') || '').trim();
+    const projectIdParam = (params.get('project_id') || params.get('id') || '').trim();
+    let resolvedProjectId = projectIdParam || null;
     let currentProject = null;
-    if (!projectId) {
-      alert('Missing project_id. Please access from the topic list.');
+    let latestGuestResponseId = null;
+
+    const isGuestSession = !session.userId || !session.accessToken;
+    const isGuestMode = Boolean(shareToken) && isGuestSession;
+
+    if (!resolvedProjectId && !shareToken) {
+      alert('Missing project reference. Please access from the topic list.');
       window.location.href = 'explore.html';
     }
 
@@ -202,9 +235,13 @@
       const qsContainer = document.getElementById('questionsContainer');
       const errorEl = document.getElementById('error');
       const rewardBannerEl = document.getElementById('rewardBanner');
+      const guestBannerEl = document.getElementById('guestBanner');
 
       try {
-          const { response, data } = await XsoliaApp.apiFetch(`/projects/${projectId}`, {
+          const endpoint = shareToken && !resolvedProjectId
+            ? `/projects/by-token/${encodeURIComponent(shareToken)}`
+            : `/projects/${encodeURIComponent(resolvedProjectId)}`;
+          const { response, data } = await XsoliaApp.apiFetch(endpoint, {
             auth: Boolean(session && session.accessToken),
             disableAuthRedirect: true,
           });
@@ -217,6 +254,7 @@
 
 		        const proj = data;
           currentProject = proj;
+          resolvedProjectId = String(proj.id);
         if (!proj.allow_indexing) {
           const meta = document.createElement('meta');
           meta.name = 'robots';
@@ -245,6 +283,7 @@
           rewardBannerEl.style.color = '#4b5563';
           rewardBannerEl.classList.remove('hidden');
         }
+        guestBannerEl.classList.toggle('hidden', !isGuestMode);
         imagesEl.innerHTML = '';
         const imageUrls = Array.isArray(proj.image_urls) ? proj.image_urls : [];
         imageUrls.slice(0, 3).forEach((url, index) => {
@@ -330,6 +369,92 @@
       document.getElementById('questionsContainer').style.outline = answersError ? '1.5px solid #f97373' : '';
     }
 
+    function showGuestConversionPrompt() {
+      const panel = document.getElementById('guestConvertPanel');
+      const successEl = document.getElementById('success');
+      successEl.textContent = 'Your feedback was submitted!';
+      successEl.style.display = 'block';
+      if (panel) {
+        panel.classList.remove('hidden');
+      }
+    }
+
+    async function convertGuestResponseToAccount() {
+      const convertError = document.getElementById('guestConvertError');
+      const name = document.getElementById('guestName').value.trim();
+      const email = document.getElementById('guestEmail').value.trim().toLowerCase();
+      const password = document.getElementById('guestPassword').value;
+      convertError.style.display = 'none';
+
+      if (!name || !email || !password) {
+        convertError.textContent = 'Please complete name, email, and password.';
+        convertError.style.display = 'block';
+        return;
+      }
+
+      const payload = {
+        name,
+        email,
+        password,
+        guest_response_ids: latestGuestResponseId ? [latestGuestResponseId] : [],
+      };
+
+      const form = document.getElementById('guestConvertForm');
+      const submitBtn = form ? form.querySelector('button[type="submit"]') : null;
+      const originalText = submitBtn ? submitBtn.textContent : '';
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Creating account...';
+      }
+
+      try {
+        const { response, data } = await XsoliaApp.apiFetch('/register/from-guest', {
+          method: 'POST',
+          body: payload,
+          disableAuthRedirect: true,
+        });
+        if (!response.ok) {
+          convertError.textContent = XsoliaApp.formatApiError(data, 'Failed to create account.');
+          convertError.style.display = 'block';
+          return;
+        }
+        XsoliaApp.setSession(data);
+        try {
+          sessionStorage.removeItem('xsolia_responded_projects_cache_v1');
+        } catch (_err) {
+          // Non-blocking cache cleanup.
+        }
+        window.location.href = 'tester-dashboard.html?welcome=1';
+      } catch (err) {
+        convertError.textContent = err.message || 'Failed to create account.';
+        convertError.style.display = 'block';
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = originalText || 'Create account & save my response';
+        }
+      }
+    }
+
+    const guestConvertForm = document.getElementById('guestConvertForm');
+    if (guestConvertForm) {
+      guestConvertForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        await convertGuestResponseToAccount();
+      });
+    }
+
+    const skipGuestConvertBtn = document.getElementById('skipGuestConvertBtn');
+    if (skipGuestConvertBtn) {
+      skipGuestConvertBtn.addEventListener('click', () => {
+        const panel = document.getElementById('guestConvertPanel');
+        const successEl = document.getElementById('success');
+        if (panel) panel.classList.add('hidden');
+        successEl.innerHTML = 'Thank you for your feedback! <a href="register.html" style="color:#2563eb;">Sign up later</a>.';
+        successEl.style.display = 'block';
+      });
+    }
+
     // Submit feedback
     document.getElementById('answerForm').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -356,7 +481,7 @@
       clearAnswerFormErrors();
 
       const clientErrors = {};
-      if (!session.userId || !session.accessToken) {
+      if (!isGuestMode && (!session.userId || !session.accessToken)) {
         errorEl.textContent = 'This validation topic is private or tester-only. Please log in with the right account to continue.';
         errorEl.style.display = 'block';
         setTimeout(() => {
@@ -364,7 +489,7 @@
         }, 900);
         return;
       }
-      if (session.role !== 'tester') {
+      if (!isGuestMode && session.role !== 'tester') {
         errorEl.textContent = 'Only tester accounts can submit feedback.';
         errorEl.style.display = 'block';
         return;
@@ -390,9 +515,11 @@
       }
 
       try {
-        const { response, data } = await XsoliaApp.apiFetch(`/projects/${projectId}/respond`, {
+        const respondPath = `/projects/${encodeURIComponent(resolvedProjectId)}/respond${isGuestMode && shareToken ? `?share_token=${encodeURIComponent(shareToken)}` : ''}`;
+        const { response, data } = await XsoliaApp.apiFetch(respondPath, {
           method: 'POST',
-          auth: true,
+          auth: !isGuestMode,
+          disableAuthRedirect: isGuestMode,
           body: payload
           });
           if (!response.ok) {
@@ -401,12 +528,24 @@
             applyAnswerFieldErrors(XsoliaApp.getFieldErrors(data));
             return;
           }
-            if (currentProject && currentProject.reward_type === 'early_access') {
-              successEl.textContent = "You're in the running — the creator will review top contributors.";
-            } else {
-		          successEl.textContent = 'Thank you for your feedback! Returning to the topic list in 3 seconds.';
-            }
-		        successEl.style.display = 'block';
+          latestGuestResponseId = data && data.response_id ? Number(data.response_id) : null;
+
+          if (isGuestMode) {
+            showGuestConversionPrompt();
+            return;
+          }
+
+          if (currentProject && currentProject.reward_type === 'early_access') {
+            successEl.textContent = "You're in the running — the creator will review top contributors.";
+          } else {
+            successEl.textContent = 'Thank you for your feedback! Returning to the topic list in 3 seconds.';
+          }
+          successEl.style.display = 'block';
+          try {
+            localStorage.setItem('tester_first_response_submitted', '1');
+          } catch (_err) {
+            // Non-blocking local hint.
+          }
           try {
             sessionStorage.removeItem('xsolia_responded_projects_cache_v1');
           } catch (_err) {

@@ -112,6 +112,12 @@
         </h1>
         <p id="projectDesc" class="insight-description"></p>
         <p id="projectMeta" class="insight-meta"></p>
+        <div class="flex items-center gap-2" style="margin-top:0.55rem;">
+          <button id="copyProjectShareLinkBtn" type="button" class="x-btn-secondary hidden" style="font-size:0.78rem;">
+            Share link
+          </button>
+          <span id="copyProjectShareLinkStatus" style="font-size:0.78rem; color:#6b7280;"></span>
+        </div>
       </div>
       <div class="insight-orbit" aria-hidden="true">
         <span></span>
@@ -221,6 +227,8 @@
     const emptyHintEl = document.getElementById("emptyHint");
     const errorEl = document.getElementById("error");
     const responsesCountEl = document.getElementById("responsesCount");
+    const copyProjectShareLinkBtn = document.getElementById("copyProjectShareLinkBtn");
+    const copyProjectShareLinkStatus = document.getElementById("copyProjectShareLinkStatus");
     const aiSummaryBtn = document.getElementById("aiSummaryBtn");
     const aiRefreshBtn = document.getElementById("aiRefreshBtn");
     const aiSummaryStatusEl = document.getElementById("aiSummaryStatus");
@@ -252,6 +260,16 @@
         localStorage.setItem(`${aiOneLinerStoragePrefix}${normalizedProjectId}`, text);
       } catch (_err) {
         // Non-blocking local cache.
+      }
+    }
+
+    async function copyProjectShareLink(shareUrl) {
+      if (!shareUrl) return;
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        copyProjectShareLinkStatus.textContent = "Link copied!";
+      } catch (_err) {
+        copyProjectShareLinkStatus.textContent = shareUrl;
       }
     }
 
@@ -408,6 +426,14 @@
         const budget = proj.budget || 0;
         const sourceText = proj.source_innovation_id ? ` · Source: Innovation Pool idea #${proj.source_innovation_id}` : "";
         projectMetaEl.textContent = `Target: ${target} · Budget: $${budget}${sourceText}`;
+        const shareUrl = String(proj.share_url || "").trim();
+        if (copyProjectShareLinkBtn) {
+          copyProjectShareLinkBtn.classList.toggle("hidden", !shareUrl);
+          copyProjectShareLinkBtn.onclick = () => copyProjectShareLink(shareUrl);
+        }
+        if (copyProjectShareLinkStatus) {
+          copyProjectShareLinkStatus.textContent = "";
+        }
         configureTopContributorsPanel(proj);
 
         // 2) 拉取该 project 的所有回答

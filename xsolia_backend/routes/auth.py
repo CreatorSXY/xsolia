@@ -12,6 +12,46 @@ from main import (
 
 router = APIRouter()
 
+
+class GuestConvertCreate(SQLModel):
+    name: str
+    email: str
+    password: str
+    guest_response_ids: list[int] = Field(default_factory=list)
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if "@" not in normalized:
+            raise ValueError("Invalid email")
+        return normalized
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: str) -> str:
+        cleaned = value.strip()
+        if len(cleaned) < 2:
+            raise ValueError("Name is too short")
+        if len(cleaned) > 64:
+            raise ValueError("Name is too long")
+        return cleaned
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value: str) -> str:
+        if len(value) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        if len(value) > 128:
+            raise ValueError("Password is too long")
+        return value
+
+    @field_validator("guest_response_ids")
+    @classmethod
+    def validate_response_ids(cls, value: list[int]) -> list[int]:
+        return [response_id for response_id in value if int(response_id) > 0]
+
+
 @router.post("/register", response_model=UserOut)
 def register(
     user: UserCreate,
@@ -41,6 +81,67 @@ def register(
 
     session.refresh(db_user)
     return UserOut.model_validate(db_user)
+
+
+@router.post("/register/from-guest", response_model=LoginOut)
+def register_from_guest(
+    payload: GuestConvertCreate,
+    request: Request,
+    session: Session = Depends(get_session),
+):
+    _enforce_auth_rate_limit(request, payload.email)
+
+    existing = session.exec(select(User).where(User.email == payload.email)).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    db_user = User(
+        email=payload.email,
+        name=payload.name,
+        password_hash=hash_password(payload.password),
+        role="tester",
+        subscription="free",
+    )
+    session.add(db_user)
+    session.flush()
+
+    claimed_count = 0
+    for response_id in sorted(set(payload.guest_response_ids)):
+        response = session.get(Response, response_id)
+        if not response:
+            continue
+        if response.user_id is not None:
+            continue
+        response.user_id = db_user.id
+        session.add(response)
+        claimed_count += 1
+
+    if claimed_count > 0:
+        db_user.points += claimed_count * 10
+        db_user.streak_current = 1
+        db_user.streak_best = max(db_user.streak_best, 1)
+        db_user.last_response_date = utc_now().strftime("%Y-%m-%d")
+
+    session.add(db_user)
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    session.refresh(db_user)
+    access_token = create_access_token(db_user)
+    return LoginOut(
+        user_id=db_user.id,
+        role=db_user.role,
+        name=db_user.name,
+        subscription=db_user.subscription,
+        username=db_user.username,
+        avatar_url=db_user.avatar_url,
+        access_token=access_token,
+        token_type="bearer",
+        expires_in=TOKEN_EXPIRE_SECONDS,
+    )
 
 
 @router.post("/login", response_model=LoginOut)
