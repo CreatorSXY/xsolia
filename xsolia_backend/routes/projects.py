@@ -652,6 +652,8 @@ def respond_to_project(
         ).first()
         if token_project_id != project_id:
             raise HTTPException(status_code=403, detail="Invalid share link")
+        # Valid share token explicitly grants access for guest submission.
+        # The only blocked visibility is invite_only.
         visibility = (project.visibility or "public").strip().lower()
         if visibility == "invite_only":
             raise HTTPException(
