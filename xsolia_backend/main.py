@@ -1211,6 +1211,8 @@ def can_view_project(project: Project, current_user: Optional[User]) -> bool:
         return False
     if visibility == "unlisted":
         return True
+    if visibility == "private_link":
+        return True
     return True
 
 

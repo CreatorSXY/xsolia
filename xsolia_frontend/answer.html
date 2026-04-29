@@ -515,11 +515,11 @@
       }
 
       try {
-        const respondPath = `/projects/${encodeURIComponent(resolvedProjectId)}/respond${isGuestMode && shareToken ? `?share_token=${encodeURIComponent(shareToken)}` : ''}`;
+        const respondPath = `/projects/${encodeURIComponent(resolvedProjectId)}/respond${shareToken ? `?share_token=${encodeURIComponent(shareToken)}` : ''}`;
         const { response, data } = await XsoliaApp.apiFetch(respondPath, {
           method: 'POST',
-          auth: !isGuestMode,
-          disableAuthRedirect: isGuestMode,
+          auth: !isGuestSession,
+          disableAuthRedirect: true,
           body: payload
           });
           if (!response.ok) {

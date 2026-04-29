@@ -652,11 +652,33 @@ def respond_to_project(
         ).first()
         if token_project_id != project_id:
             raise HTTPException(status_code=403, detail="Invalid share link")
+        visibility = (project.visibility or "public").strip().lower()
+        if visibility == "invite_only":
+            raise HTTPException(
+                status_code=403,
+                detail="This topic requires a direct invitation. Share links are not accepted.",
+            )
     else:
-        if not can_answer_project(project, current_user):
-            if project.creator_id == current_user.id:
-                raise HTTPException(status_code=403, detail="Project creators cannot respond to their own project")
-            raise HTTPException(status_code=403, detail="Project is private or tester-only")
+        if current_user.id == project.creator_id:
+            raise HTTPException(status_code=403, detail="Project creators cannot respond to their own project")
+        if current_user.role != "tester":
+            raise HTTPException(status_code=403, detail="Only testers can respond to validation topics")
+        cleaned_token = (share_token or "").strip()
+        if cleaned_token:
+            token_project_id = session.exec(
+                select(Project.id).where(Project.share_token == cleaned_token)
+            ).first()
+            if token_project_id != project_id:
+                raise HTTPException(status_code=403, detail="Invalid share link")
+            visibility = (project.visibility or "public").strip().lower()
+            if visibility == "invite_only":
+                raise HTTPException(
+                    status_code=403,
+                    detail="This topic requires a direct invitation. Share links are not accepted.",
+                )
+        else:
+            if not can_answer_project(project, current_user):
+                raise HTTPException(status_code=403, detail="This topic is not publicly accessible")
         responder_user_id = current_user.id
 
         existing = session.exec(
