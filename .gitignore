@@ -33,6 +33,7 @@ logs/
 uploads/
 static/uploads/
 media/
+mobile/
 
 # OS / IDE
 .vscode/
