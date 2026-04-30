@@ -66,7 +66,7 @@ function normalizeNavBrand() {
         <img
           class="site-logo-horizontal-img"
           src="assets/logo/logo-horizontal.png"
-          alt="Krotka.ai by xSolia"
+          alt="xSolia"
           width="140"
           height="30"
         />

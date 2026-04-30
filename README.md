@@ -1,6 +1,6 @@
-# Krotka.ai by xSolia
+# xSolia
 
-Krotka.ai is an early-stage market validation platform by xSolia.
+xSolia is an early-stage market validation platform.
 
 It includes:
 - **Backend**: FastAPI + SQLModel
@@ -10,7 +10,7 @@ It includes:
 ## Project Structure
 
 ```text
-krotka/
+xsolia/
 ├─ xsolia_backend/          # FastAPI service
 │  ├─ main.py
 │  ├─ requirements.txt

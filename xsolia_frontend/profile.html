@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Public Profile · Krotka.ai by xSolia</title>
+  <title>Public Profile · xSolia</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="css/theme.css?v=20260425-profile" />
@@ -55,7 +55,7 @@
     <p id="error" class="hidden" style="max-width:960px; margin:1rem auto 0; color:#f97373; font-size:0.9rem;"></p>
   </main>
 
-  <footer style="text-align:center; padding:1.5rem 0; font-size:0.75rem; color:var(--ink-faint);">© 2026 Krotka.ai by xSolia</footer>
+  <footer style="text-align:center; padding:1.5rem 0; font-size:0.75rem; color:var(--ink-faint);">© 2026 xSolia</footer>
 
   <script src="js/app.js?v=20260424-gsap"></script>
   <script src="js/logo.js"></script>
@@ -85,7 +85,7 @@
         const { response, data } = await XsoliaApp.apiFetch(`/users/${encodeURIComponent(handle)}/public`);
         if (!response.ok) throw new Error(XsoliaApp.formatApiError(data, 'Profile not found.'));
 
-        document.title = `${data.username} · Krotka.ai by xSolia`;
+        document.title = `${data.username} · xSolia`;
         document.getElementById('profileName').textContent = data.name || data.username;
         document.getElementById('profileUsername').textContent = `@${data.username}`;
         document.getElementById('profileMeta').textContent = data.role === 'creator'

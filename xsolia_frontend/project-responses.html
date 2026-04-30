@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Topic responses · Krotka.ai by xSolia</title>
+  <title>Topic responses · xSolia</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -32,7 +32,7 @@
             k
           </div>
           <div>
-            <div class="site-logo-text">Krotka.ai by xSolia</div>
+            <div class="site-logo-text">xSolia</div>
             <div class="site-subtitle">Early validation playground</div>
           </div>
         </a>
@@ -199,7 +199,7 @@
   </main>
 
   <footer style="text-align:center; padding:1.5rem 0; font-size:0.75rem; color:var(--ink-faint);">
-    © 2026 Krotka.ai by xSolia
+    © 2026 xSolia
   </footer>
 
   <script src="js/app.js?v=20260424-gsap"></script>
@@ -623,12 +623,12 @@
         const priceText = priceBandFromStats(stats);
         const testersText = `${stats.responses_count || 0} tester${stats.responses_count === 1 ? "" : "s"}`;
 
-        latestShareText = `${currentProject.title} · ${testersText}\n${interestText} · ${priceText}\nTop signal: ${topSignal}\nKrotka.ai by xSolia`;
+        latestShareText = `${currentProject.title} · ${testersText}\n${interestText} · ${priceText}\nTop signal: ${topSignal}\nxSolia`;
         shareCardPreviewEl.innerHTML = `
           <div id="share-card" style="width:1200px;height:630px;padding:68px 76px;display:flex;flex-direction:column;justify-content:space-between;background:#f4f1ea;color:#151310;border:1px solid rgba(21,19,16,0.16);font-family:Inter,Arial,sans-serif;position:relative;overflow:hidden;">
             <div style="position:absolute;right:-140px;top:-180px;width:520px;height:520px;border-radius:999px;background:radial-gradient(circle, rgba(215,98,53,0.24), transparent 68%);"></div>
             <div style="position:relative;z-index:1;">
-              <div style="font:700 24px 'JetBrains Mono', monospace;letter-spacing:-0.04em;color:#726b60;">Krotka.ai validation report</div>
+              <div style="font:700 24px 'JetBrains Mono', monospace;letter-spacing:-0.04em;color:#726b60;">xSolia validation report</div>
               <h2 style="max-width:860px;margin:42px 0 0;font:800 74px/0.95 Syne, Inter, sans-serif;letter-spacing:-0.055em;">${escapeHtml(currentProject.title)}</h2>
               <p style="margin:24px 0 0;font-size:30px;color:#2a2722;">${escapeHtml(testersText)}</p>
             </div>
@@ -642,7 +642,7 @@
                 <div style="margin-top:12px;font-size:28px;line-height:1.18;color:#151310;">${escapeHtml(topSignal)}</div>
               </div>
             </div>
-            <div style="position:relative;z-index:1;font:800 28px Syne, Inter, sans-serif;letter-spacing:-0.04em;">Krotka.ai by xSolia</div>
+            <div style="position:relative;z-index:1;font:800 28px Syne, Inter, sans-serif;letter-spacing:-0.04em;">xSolia</div>
           </div>
         `;
         shareCardPreviewEl.classList.remove("hidden");
@@ -665,7 +665,7 @@
         const canvas = await html2canvas(card, { backgroundColor: null, scale: 1 });
         const link = document.createElement("a");
         link.href = canvas.toDataURL("image/png");
-        link.download = `krotka-${currentProject.id || projectId}-validation-card.png`;
+        link.download = `xsolia-${currentProject.id || projectId}-validation-card.png`;
         link.click();
         shareStatusEl.textContent = "PNG exported.";
       } catch (err) {
